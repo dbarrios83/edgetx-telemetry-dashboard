@@ -15,7 +15,9 @@ Features (planned):
 - Modern icon pack
 - Dark theme UI
 
-Status: 🚧 Early Development
+Status:
+- Design documentation completed
+- Next stage: implementation (EPIC 6)
 
 ## Repository Structure
 
@@ -24,8 +26,8 @@ edgetx-telemetry-dashboard
 |
 +- SCRIPTS/
 |  +- WIDGETS/
-|     +- TELEMETRY/
-|        +- dashboard.lua
+|     +- FPVDASH/
+|        +- main.lua
 |        +- icons/
 |           +- battery.png
 |           +- signal.png
@@ -62,8 +64,8 @@ Copy the `SCRIPTS` folder directly to the EdgeTX SD card.
 Resulting SD card structure:
 
 ```text
-/SCRIPTS/WIDGETS/TELEMETRY/
-	dashboard.lua
+/SCRIPTS/WIDGETS/FPVDASH/
+	main.lua
 	icons/
 		battery.png
 		signal.png

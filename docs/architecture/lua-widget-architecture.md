@@ -24,11 +24,11 @@ The dashboard is implemented as an EdgeTX Lua widget.
 
 Runtime entrypoint:
 
-    /SCRIPTS/WIDGETS/TELEMETRY/dashboard.lua
+    /SCRIPTS/WIDGETS/FPVDASH/main.lua
 
 Repository path:
 
-    SCRIPTS/WIDGETS/TELEMETRY/dashboard.lua
+    SCRIPTS/WIDGETS/FPVDASH/main.lua
 
 The entrypoint coordinates telemetry reads, state evaluation, layout computation, and renderer calls.
 
@@ -68,8 +68,8 @@ All user-visible dashboard rendering occurs in `refresh()`.
 Proposed module structure under the runtime widget directory:
 
 ```text
-SCRIPTS/WIDGETS/TELEMETRY/
-  dashboard.lua
+SCRIPTS/WIDGETS/FPVDASH/
+    main.lua
 
   layout/
     layout.lua
@@ -92,7 +92,7 @@ This structure isolates responsibilities and allows focused testing by module.
 ### 6.1 Widget Orchestrator
 File:
 
-    SCRIPTS/WIDGETS/TELEMETRY/dashboard.lua
+    SCRIPTS/WIDGETS/FPVDASH/main.lua
 
 Responsibilities:
 - lifecycle management
@@ -105,7 +105,7 @@ The widget orchestrator should not embed detailed telemetry parsing rules or dra
 ### 6.2 Layout Module
 Files:
 
-    SCRIPTS/WIDGETS/TELEMETRY/layout/layout.lua
+    SCRIPTS/WIDGETS/FPVDASH/layout/layout.lua
 
 Responsibilities:
 - compute dashboard region bounds from widget zone and display class
@@ -117,7 +117,7 @@ The layout module outputs geometry only and does not draw.
 ### 6.3 Slot Definition Module
 Files:
 
-    SCRIPTS/WIDGETS/TELEMETRY/layout/slots.lua
+    SCRIPTS/WIDGETS/FPVDASH/layout/slots.lua
 
 Responsibilities:
 - map telemetry metrics to fixed slot identifiers
@@ -153,9 +153,9 @@ O4 -> Active Antenna
 ### 6.4 Rendering Modules
 Files:
 
-    SCRIPTS/WIDGETS/TELEMETRY/render/topbar.lua
-    SCRIPTS/WIDGETS/TELEMETRY/render/sticks.lua
-    SCRIPTS/WIDGETS/TELEMETRY/render/cards.lua
+    SCRIPTS/WIDGETS/FPVDASH/render/topbar.lua
+    SCRIPTS/WIDGETS/FPVDASH/render/sticks.lua
+    SCRIPTS/WIDGETS/FPVDASH/render/cards.lua
 
 Responsibilities:
 - draw UI elements inside provided bounds
@@ -164,17 +164,31 @@ Responsibilities:
 
 Renderer contract:
 
+Base renderer pattern:
+
 ```lua
 draw(rect, data)
 ```
+
+Renderers may also expose specialized functions when a component renders multiple regions.
+
+Example:
+
+```lua
+cards.drawPrimary(rect, telemetry, state)
+cards.drawContext(rect, telemetry, state)
+cards.drawOptional(rect, telemetry, state)
+```
+
+All renderer functions must receive precomputed layout bounds and prepared data from the widget orchestrator.
 
 Renderers should avoid direct sensor reads and avoid mutating global widget state.
 
 ### 6.5 Telemetry Modules
 Files:
 
-    SCRIPTS/WIDGETS/TELEMETRY/telemetry/read.lua
-    SCRIPTS/WIDGETS/TELEMETRY/telemetry/state.lua
+    SCRIPTS/WIDGETS/FPVDASH/telemetry/read.lua
+    SCRIPTS/WIDGETS/FPVDASH/telemetry/state.lua
 
 Responsibilities of `read.lua`:
 - retrieve sensor values from EdgeTX APIs
@@ -198,7 +212,7 @@ telemetry = {
     lq = 100,
     packetRate = 500,
     current = 18.4,
-    sats = 12,
+    satellites = 12,
     txPower = 250,
     flightMode = "ACRO"
 }
@@ -300,6 +314,9 @@ Rendering should remain lightweight to maintain consistent radio UI responsivene
 
 ## 12. Related Specifications
 This architecture aligns with:
+- [docs/architecture/ui-components-module.md](ui-components-module.md)
+- [docs/architecture/telemetry-module.md](telemetry-module.md)
+- [docs/architecture/rendering-pipeline.md](rendering-pipeline.md)
 - [docs/ui/telemetry-layout.md](../ui/telemetry-layout.md)
 - [docs/ui/telemetry-cards.md](../ui/telemetry-cards.md)
 - [docs/ui/telemetry-state.md](../ui/telemetry-state.md)

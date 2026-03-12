@@ -42,7 +42,7 @@ The dashboard is implemented as a **Lua widget for EdgeTX**.
 
 Primary entry point:
 
-`SCRIPTS/WIDGETS/TELEMETRY/dashboard.lua`
+`SCRIPTS/WIDGETS/FPVDASH/main.lua`
 
 The widget should follow EdgeTX lifecycle callbacks:
 
@@ -111,7 +111,7 @@ All UI components should be implemented as reusable render functions.
 
 Icons are stored in:
 
-`SCRIPTS/WIDGETS/TELEMETRY/icons/`
+`SCRIPTS/WIDGETS/FPVDASH/icons/`
 
 Runtime icon files are flat in this directory (no subfolders).
 
@@ -143,11 +143,11 @@ If implementing UI components, consult these documents first.
 
 Code lives in:
 
-`SCRIPTS/WIDGETS/TELEMETRY/`
+`SCRIPTS/WIDGETS/FPVDASH/`
 
 Icons:
 
-`SCRIPTS/WIDGETS/TELEMETRY/icons/`
+`SCRIPTS/WIDGETS/FPVDASH/icons/`
 
 Design files:
 

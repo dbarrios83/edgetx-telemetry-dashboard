@@ -4,8 +4,8 @@
 Build an EdgeTX widget-based telemetry dashboard optimized for quick in-flight readability.
 
 ## High-Level Components
-- `SCRIPTS/WIDGETS/TELEMETRY/dashboard.lua`: Widget entry point, render/update lifecycle, telemetry adapters.
-- `SCRIPTS/WIDGETS/TELEMETRY/icons/`: Runtime icon assets loaded by absolute EdgeTX paths.
+- `SCRIPTS/WIDGETS/FPVDASH/main.lua`: Widget entry point, render/update lifecycle, telemetry adapters.
+- `SCRIPTS/WIDGETS/FPVDASH/icons/`: Runtime icon assets loaded by absolute EdgeTX paths.
 - `tests/`: Unit and simulation-style checks for parsing and layout logic.
 - `tests/examples/`: Example configs and sample telemetry payload references.
 
@@ -15,10 +15,10 @@ The repository mirrors the EdgeTX SD card structure.
 This allows developers to copy the `SCRIPTS` directory directly to the radio without a build step.
 
 Runtime widget path:
-- `/SCRIPTS/WIDGETS/TELEMETRY/dashboard.lua`
+- `/SCRIPTS/WIDGETS/FPVDASH/main.lua`
 
 Runtime icon path:
-- `/SCRIPTS/WIDGETS/TELEMETRY/icons/*.png`
+- `/SCRIPTS/WIDGETS/FPVDASH/icons/*.png`
 
 ## Planned Data Flow
 1. Read telemetry fields from EdgeTX runtime APIs.

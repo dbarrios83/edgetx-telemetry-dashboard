@@ -92,7 +92,7 @@ Avoid unnecessary allocations in `refresh`.
 
 ## Suggested Module Responsibilities
 
-### `dashboard.lua`
+### `main.lua`
 Main widget entry point.
 
 Responsibilities:
