@@ -234,7 +234,7 @@ local function availableText(v)
 end
 
 local function formatBatteryValue(v)
-  return string.format("%.1fV", v)
+  return string.format("%.2fV", v)
 end
 
 local function formatRSSIValue(v)
@@ -375,20 +375,25 @@ local FLIGHT_MODE_CARD_SPEC = {
 }
 
 -- ─── Battery card (P1) ────────────────────────────────────────────────────────
--- Displays total pack voltage and detected cell count inside the P1 slot.
+-- Displays average per-cell voltage and detected cell count inside the P1 slot.
 -- Cell count uses: cells = floor(voltage / 4.2) + 1  (LiPo max 4.2 V/cell)
 local function drawBattery(slot, telemetry, state)
   if not slot then return end
-  local voltage = (telemetry and telemetry.battery) or 0
+  local packVoltage = (telemetry and telemetry.battery) or 0
 
   -- Auto-detect cell count from max-charge voltage (4.2 V/cell).
   local cells = 1
-  if voltage > 0 then
-    cells = math.max(1, math.floor(voltage / 4.2) + 1)
+  if packVoltage > 0 then
+    cells = math.max(1, math.floor(packVoltage / 4.2) + 1)
+  end
+
+  local cellVoltage = 0
+  if packVoltage > 0 and cells > 0 then
+    cellVoltage = packVoltage / cells
   end
 
   BATTERY_CARD_SPEC.icon = icons.battery
-  BATTERY_CARD_SPEC.value = voltage
+  BATTERY_CARD_SPEC.value = cellVoltage
   BATTERY_CARD_SPEC.state = (state and state.battery) or "UNKNOWN"
   BATTERY_CARD_SPEC.secondaryText = cells .. "S"
 
