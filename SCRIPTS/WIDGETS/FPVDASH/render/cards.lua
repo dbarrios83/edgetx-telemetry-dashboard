@@ -286,11 +286,7 @@ end
 local function formatAntennaValue(v)
   local raw = math.floor(v + 0.5)
 
-  -- ELRS commonly reports active antenna as 0/1; display as ANT1/ANT2.
-  if raw == 0 or raw == 1 then
-    return "ANT" .. tostring(raw + 1)
-  end
-
+  -- Show raw telemetry-reported antenna index.
   return "ANT" .. tostring(raw)
 end
 
