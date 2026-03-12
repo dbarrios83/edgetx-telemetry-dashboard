@@ -19,6 +19,8 @@ local ICON_SIGNAL = nil
 local ICON_RFMD = nil
 local ICON_CURRENT = nil
 local ICON_SAT = nil
+local ICON_ANTENNA = nil
+local ICON_DRONE = nil
 do
   if Bitmap then
     local roots = {
@@ -66,6 +68,22 @@ do
         break
       end
     end
+
+    for _, root in ipairs(roots) do
+      local bm = Bitmap.open(root .. "antenna.png")
+      if bm then
+        ICON_ANTENNA = bm
+        break
+      end
+    end
+
+    for _, root in ipairs(roots) do
+      local bm = Bitmap.open(root .. "drone.png")
+      if bm then
+        ICON_DRONE = bm
+        break
+      end
+    end
   end
 end
 
@@ -76,6 +94,8 @@ local icons = {
   rfmd = ICON_RFMD,
   current = ICON_CURRENT,
   sat = ICON_SAT,
+  antenna = ICON_ANTENNA,
+  drone = ICON_DRONE,
 }
 
 -- ─── Slot order ───────────────────────────────────────────────────────────────
@@ -209,6 +229,10 @@ local function availableNotDisconnected(v, spec)
   return type(v) == "number" and spec and spec.state ~= "DISCONNECTED"
 end
 
+local function availableText(v)
+  return type(v) == "string" and v ~= "" and v ~= "--"
+end
+
 local function formatBatteryValue(v)
   return string.format("%.1fV", v)
 end
@@ -237,6 +261,14 @@ end
 
 local function formatSatValue(v)
   return tostring(math.floor(v + 0.5))
+end
+
+local function formatTxPowerValue(v)
+  return tostring(math.floor(v + 0.5))
+end
+
+local function formatFlightModeValue(v)
+  return tostring(v)
 end
 
 local BATTERY_CARD_SPEC = {
@@ -312,6 +344,31 @@ local SAT_CARD_SPEC = {
   formatValue = formatSatValue,
   secondaryText = "SAT",
   valueFlags = MIDSIZE,
+  secondaryFlags = SMLSIZE,
+  unitOffset = 16,
+  placeholder = "---",
+}
+
+local TX_POWER_CARD_SPEC = {
+  icon = icons.antenna,
+  state = "UNKNOWN",
+  value = 0,
+  isAvailable = availablePositive,
+  formatValue = formatTxPowerValue,
+  unit = "mW",
+  valueFlags = MIDSIZE,
+  secondaryFlags = SMLSIZE,
+  unitOffset = 16,
+  placeholder = "---",
+}
+
+local FLIGHT_MODE_CARD_SPEC = {
+  icon = icons.drone,
+  state = nil,
+  value = "",
+  isAvailable = availableText,
+  formatValue = formatFlightModeValue,
+  valueFlags = SMLSIZE,
   secondaryFlags = SMLSIZE,
   unitOffset = 16,
   placeholder = "---",
@@ -401,6 +458,28 @@ local function drawSatellites(slot, telemetry, state)
   drawCard(slot, SAT_CARD_SPEC)
 end
 
+-- ─── TX Power card (C1) ─────────────────────────────────────────────────────
+local function drawTxPower(slot, telemetry, state)
+  if not slot then return end
+
+  TX_POWER_CARD_SPEC.icon = icons.antenna
+  TX_POWER_CARD_SPEC.value = (telemetry and telemetry.txPower) or 0
+  TX_POWER_CARD_SPEC.state = (state and state.txPower) or "UNKNOWN"
+
+  drawCard(slot, TX_POWER_CARD_SPEC)
+end
+
+-- ─── Flight Mode card (C2) ──────────────────────────────────────────────────
+local function drawFlightMode(slot, telemetry)
+  if not slot then return end
+
+  FLIGHT_MODE_CARD_SPEC.icon = icons.drone
+  FLIGHT_MODE_CARD_SPEC.value = (telemetry and telemetry.flightMode) or ""
+  FLIGHT_MODE_CARD_SPEC.state = nil
+
+  drawCard(slot, FLIGHT_MODE_CARD_SPEC)
+end
+
 -- ─── Public API ───────────────────────────────────────────────────────────────
 
 M.icons = icons
@@ -448,8 +527,11 @@ function M.draw(layout, slots, telemetry, state)
     end
   end
 
-  -- Context row and diagnostics: skeleton.
-  drawSlots(slots.context,  CONTEXT_ORDER)
+  -- C1/C2: context row cards (implemented by issue #57).
+  drawTxPower(slots.context and slots.context.C1, telemetry, state)
+  drawFlightMode(slots.context and slots.context.C2, telemetry)
+
+  -- Diagnostics row remains skeleton until optional cards are implemented.
   drawSlots(slots.optional, OPTIONAL_ORDER)
 end
 
