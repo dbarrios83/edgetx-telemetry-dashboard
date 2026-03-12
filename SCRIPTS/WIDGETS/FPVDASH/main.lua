@@ -114,8 +114,8 @@ local function refresh(widget, event, touchState)
     sticksRenderer.drawSkeleton(widget.layout.stickMonitor, widget.telemetry, widget.state)
   end
 
-  if cardsRenderer and cardsRenderer.drawSkeleton then
-    cardsRenderer.drawSkeleton(widget.layout, widget.slots, widget.telemetry, widget.state)
+  if cardsRenderer and cardsRenderer.draw then
+    cardsRenderer.draw(widget.layout, widget.slots, widget.telemetry, widget.state)
   end
 
   local debugY = widget.zone.y + widget.zone.h - 10
