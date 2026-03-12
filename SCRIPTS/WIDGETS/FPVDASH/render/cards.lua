@@ -15,6 +15,7 @@ local _RED    = (type(RED)    == "number") and RED    or _WHITE
 -- ─── Icon handles ─────────────────────────────────────────────────────────────
 -- Loaded once at module startup; nil when asset is unavailable or Bitmap absent.
 local ICON_BATTERY = nil
+local ICON_SIGNAL = nil
 do
   if Bitmap then
     local roots = {
@@ -27,6 +28,14 @@ do
       local bm = Bitmap.open(root .. "battery.png")
       if bm then
         ICON_BATTERY = bm
+        break
+      end
+    end
+
+    for _, root in ipairs(roots) do
+      local bm = Bitmap.open(root .. "signal.png")
+      if bm then
+        ICON_SIGNAL = bm
         break
       end
     end
@@ -143,6 +152,53 @@ local function drawBattery(slot, telemetry, state)
   end
 end
 
+-- ─── RSSI card (P4) ──────────────────────────────────────────────────────────
+-- Displays RSSI as stacked value + unit inside the P4 slot.
+-- Example layout:
+--   -65
+--   dBm
+local function drawRSSI(slot, telemetry, state)
+  if not slot then return end
+
+  lcd.drawRectangle(slot.x, slot.y, slot.w, slot.h)
+
+  local rssi = (telemetry and telemetry.rssi) or 0
+  local rssiState = (state and state.rssi) or "UNKNOWN"
+  local color = stateColor(rssiState)
+
+  local padX = 2
+  local padY = 2
+
+  local iconAreaW = 0
+  if ICON_SIGNAL then
+    local iconH = clamp(slot.h - padY * 2, 8, 32)
+    local scale = math.max(1, math.floor(iconH / 32 * 100))
+    lcd.drawBitmap(ICON_SIGNAL, slot.x + padX, slot.y + padY, scale)
+    iconAreaW = iconH + padX + 2
+  end
+
+  local textX = slot.x + iconAreaW + padX
+  local textTop = slot.y + padY
+
+  if rssi == 0 then
+    drawCenteredLabel(slot, "---")
+    return
+  end
+
+  local value
+  if rssi >= 0 then
+    value = math.floor(rssi + 0.5)
+  else
+    value = math.ceil(rssi - 0.5)
+  end
+  lcd.drawText(textX, textTop, tostring(value), tf(MIDSIZE, color))
+
+  local unitY = textTop + 16
+  if unitY + 8 <= slot.y + slot.h then
+    lcd.drawText(textX, unitY, "dBm", SMLSIZE)
+  end
+end
+
 -- ─── Public API ───────────────────────────────────────────────────────────────
 
 -- Live card rendering pipeline.
@@ -163,11 +219,16 @@ function M.draw(layout, slots, telemetry, state)
   -- P1: battery card (fully implemented by issue #38).
   drawBattery(slots.primary and slots.primary.P1, telemetry, state)
 
-  -- P2–P6: skeleton placeholder until their cards are added.
+  -- P4: RSSI card (implemented by issue #43).
+  drawRSSI(slots.primary and slots.primary.P4, telemetry, state)
+
+  -- Remaining primary slots: skeleton placeholder until their cards are added.
   for i = 2, #PRIMARY_ORDER do
     local id   = PRIMARY_ORDER[i]
     local slot = slots.primary and slots.primary[id]
-    if slot then drawBox(slot, id) end
+    if slot and id ~= "P4" then
+      drawBox(slot, id)
+    end
   end
 
   -- Context row and diagnostics: skeleton.
