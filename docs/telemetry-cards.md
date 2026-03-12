@@ -243,7 +243,7 @@ Threshold evaluation determines the icon color state for each card.
     otherwise                         → OK (green)
 
 Threshold evaluation is centralized in the telemetry state module.
-See `docs/telemetry-state.md` for the full state system design.
+See [docs/telemetry-state.md](telemetry-state.md) for the full state system design.
 
 ## 9. Design Implications
 The telemetry card system should support future growth without forcing layout redesign.

@@ -16,7 +16,7 @@ Compatible display class:
 
 The layout system must keep the same card order and visual hierarchy across both classes.
 
-For supported radios and display classes, see `docs/hardware-targets.md`.
+For supported radios and display classes, see [docs/hardware-targets.md](hardware-targets.md).
 
 ## 3. Layout Goals
 The telemetry card layout system must ensure:
@@ -76,6 +76,9 @@ Optional diagnostic cards render only when their sensors are available:
 - Active Antenna
 
 These cards must use reserved optional slots located after the primary grid and after the context extension slots.
+
+
+The layout system must remain deterministic: a telemetry metric always appears in the same slot when present.
 
 ## 5. Card Dimensions And Spacing
 Suggested baseline for the primary 480 x 320 layout:
@@ -190,6 +193,6 @@ The layout system should support future growth without forcing a redesign of the
 Guidance:
 - keep the two-row primary grid stable
 - add new telemetry through reserved extension or optional slots
-- preserve the visual hierarchy defined in `docs/telemetry-priority.md`
-- keep card definitions aligned with `docs/telemetry-cards.md`
-- keep layout scaling consistent with `docs/hardware-targets.md`
+- preserve the visual hierarchy defined in [docs/telemetry-priority.md](telemetry-priority.md)
+- keep card definitions aligned with [docs/telemetry-cards.md](telemetry-cards.md)
+- keep layout scaling consistent with [docs/hardware-targets.md](hardware-targets.md)

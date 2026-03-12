@@ -165,7 +165,7 @@ Placement rules:
 - the monitor should not push critical telemetry cards into different positions
 - layout definitions should place the stick monitor using reserved bounds rather than ad hoc draw coordinates
 
-For grid and slot behavior below the stick monitor area, see `docs/telemetry-layout.md`.
+For grid and slot behavior below the stick monitor area, see [docs/telemetry-layout.md](telemetry-layout.md).
 
 ## 12. Performance Considerations
 Stick rendering must remain lightweight so the widget refresh loop stays responsive.

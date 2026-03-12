@@ -14,7 +14,7 @@ It is intended for AI coding agents and contributors working on Lua widget code.
 - Primary display class: `480x320`
 - Compatible display class: `480x272`
 
-Hardware assumptions are defined in `docs/hardware-targets.md`.
+Hardware assumptions are defined in [docs/hardware-targets.md](hardware-targets.md).
 
 The implementation must remain lightweight and avoid unnecessary redraw and memory allocation.
 
