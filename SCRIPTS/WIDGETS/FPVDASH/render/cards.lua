@@ -16,6 +16,7 @@ local _RED    = (type(RED)    == "number") and RED    or _WHITE
 -- Loaded once at module startup; nil when asset is unavailable or Bitmap absent.
 local ICON_BATTERY = nil
 local ICON_SIGNAL = nil
+local ICON_RFMD = nil
 do
   if Bitmap then
     local roots = {
@@ -39,6 +40,14 @@ do
         break
       end
     end
+
+    for _, root in ipairs(roots) do
+      local bm = Bitmap.open(root .. "rfmd.png")
+      if bm then
+        ICON_RFMD = bm
+        break
+      end
+    end
   end
 end
 
@@ -52,6 +61,48 @@ local function clamp(v, lo, hi)
   if v < lo then return lo end
   if v > hi then return hi end
   return v
+end
+
+-- ─── Packet Rate card (P3) ───────────────────────────────────────────────────
+-- Displays packet rate as stacked value + unit inside the P3 slot.
+-- Example layout:
+--   500
+--   Hz
+local function drawPacketRate(slot, telemetry, state)
+  if not slot then return end
+
+  lcd.drawRectangle(slot.x, slot.y, slot.w, slot.h)
+
+  local rate = (telemetry and telemetry.packetRate) or 0
+  local rateState = (state and state.packetRate) or "UNKNOWN"
+  local color = stateColor(rateState)
+
+  local padX = 2
+  local padY = 2
+
+  local iconAreaW = 0
+  if ICON_RFMD then
+    local iconH = clamp(slot.h - padY * 2, 8, 32)
+    local scale = math.max(1, math.floor(iconH / 32 * 100))
+    lcd.drawBitmap(ICON_RFMD, slot.x + padX, slot.y + padY, scale)
+    iconAreaW = iconH + padX + 2
+  end
+
+  local textX = slot.x + iconAreaW + padX
+  local textTop = slot.y + padY
+
+  if rate <= 0 then
+    drawCenteredLabel(slot, "---")
+    return
+  end
+
+  local value = math.floor(rate + 0.5)
+  lcd.drawText(textX, textTop, tostring(value), tf(MIDSIZE, color))
+
+  local unitY = textTop + 16
+  if unitY + 8 <= slot.y + slot.h then
+    lcd.drawText(textX, unitY, "Hz", SMLSIZE)
+  end
 end
 
 local function stateColor(s)
@@ -219,6 +270,9 @@ function M.draw(layout, slots, telemetry, state)
   -- P1: battery card (fully implemented by issue #38).
   drawBattery(slots.primary and slots.primary.P1, telemetry, state)
 
+  -- P3: packet-rate card (implemented by issue #41).
+  drawPacketRate(slots.primary and slots.primary.P3, telemetry, state)
+
   -- P4: RSSI card (implemented by issue #43).
   drawRSSI(slots.primary and slots.primary.P4, telemetry, state)
 
@@ -226,7 +280,7 @@ function M.draw(layout, slots, telemetry, state)
   for i = 2, #PRIMARY_ORDER do
     local id   = PRIMARY_ORDER[i]
     local slot = slots.primary and slots.primary[id]
-    if slot and id ~= "P4" then
+    if slot and id ~= "P3" and id ~= "P4" then
       drawBox(slot, id)
     end
   end
