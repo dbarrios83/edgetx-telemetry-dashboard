@@ -31,7 +31,6 @@ local FIELD_SENSORS = {
 }
 
 local PACKET_RATE_FROM_RFMD = {
-  [0] = 4,
   [1] = 25,
   [2] = 50,
   [3] = 100,
@@ -170,8 +169,14 @@ local function normalizePacketRate(raw)
     return nil
   end
 
-  if n >= 0 and n <= 7 and PACKET_RATE_FROM_RFMD[n] then
+  -- RFMD index 0 is commonly reported during telemetry loss, so we avoid
+  -- mapping it to 4 Hz to prevent false "valid" packet-rate display.
+  if n >= 1 and n <= 7 and PACKET_RATE_FROM_RFMD[n] then
     return PACKET_RATE_FROM_RFMD[n]
+  end
+
+  if n == 0 then
+    return nil
   end
 
   return n
@@ -230,13 +235,21 @@ local function assignText(field, normalizer)
   end
 end
 
--- Base connection on telemetry-sensor availability flags only.
--- Avoids false-positive from EdgeTX internal radio RSSI (getValue("RSSI")
--- always returns a non-zero value even without receiver telemetry).
+-- Base connection on live telemetry values, not just sensor presence.
+-- Sensor IDs remain available even when RX link drops, so availability flags
+-- alone can keep connected=true incorrectly.
 local function updateConnectionFlag()
-  snapshot.connected = snapshot.available.linkQuality
-    or snapshot.available.txPower
-    or snapshot.available.packetRate
+  local hasLQ = snapshot.available.linkQuality and snapshot.linkQuality > 0
+  local hasTxPower = snapshot.available.txPower and snapshot.txPower > 0
+  local hasPacketRate = snapshot.available.packetRate and snapshot.packetRate > 0
+
+  snapshot.connected = hasLQ or hasTxPower or hasPacketRate
+
+  if not snapshot.connected then
+    -- Prevent stale/invalid values from being rendered while disconnected.
+    snapshot.packetRate = 0
+    snapshot.available.packetRate = false
+  end
 end
 
 function M.snapshot()
