@@ -63,48 +63,6 @@ local function clamp(v, lo, hi)
   return v
 end
 
--- ─── Packet Rate card (P3) ───────────────────────────────────────────────────
--- Displays packet rate as stacked value + unit inside the P3 slot.
--- Example layout:
---   500
---   Hz
-local function drawPacketRate(slot, telemetry, state)
-  if not slot then return end
-
-  lcd.drawRectangle(slot.x, slot.y, slot.w, slot.h)
-
-  local rate = (telemetry and telemetry.packetRate) or 0
-  local rateState = (state and state.packetRate) or "UNKNOWN"
-  local color = stateColor(rateState)
-
-  local padX = 2
-  local padY = 2
-
-  local iconAreaW = 0
-  if ICON_RFMD then
-    local iconH = clamp(slot.h - padY * 2, 8, 32)
-    local scale = math.max(1, math.floor(iconH / 32 * 100))
-    lcd.drawBitmap(ICON_RFMD, slot.x + padX, slot.y + padY, scale)
-    iconAreaW = iconH + padX + 2
-  end
-
-  local textX = slot.x + iconAreaW + padX
-  local textTop = slot.y + padY
-
-  if rate <= 0 then
-    drawCenteredLabel(slot, "---")
-    return
-  end
-
-  local value = math.floor(rate + 0.5)
-  lcd.drawText(textX, textTop, tostring(value), tf(MIDSIZE, color))
-
-  local unitY = textTop + 16
-  if unitY + 8 <= slot.y + slot.h then
-    lcd.drawText(textX, unitY, "Hz", SMLSIZE)
-  end
-end
-
 local function stateColor(s)
   if s == "OK"       then return _GREEN  end
   if s == "WARNING"  then return _YELLOW end
@@ -247,6 +205,48 @@ local function drawRSSI(slot, telemetry, state)
   local unitY = textTop + 16
   if unitY + 8 <= slot.y + slot.h then
     lcd.drawText(textX, unitY, "dBm", SMLSIZE)
+  end
+end
+
+-- ─── Packet Rate card (P3) ───────────────────────────────────────────────────
+-- Displays packet rate as stacked value + unit inside the P3 slot.
+-- Example layout:
+--   500
+--   Hz
+local function drawPacketRate(slot, telemetry, state)
+  if not slot then return end
+
+  lcd.drawRectangle(slot.x, slot.y, slot.w, slot.h)
+
+  local rate = (telemetry and telemetry.packetRate) or 0
+  local rateState = (state and state.packetRate) or "UNKNOWN"
+  local color = stateColor(rateState)
+
+  local padX = 2
+  local padY = 2
+
+  local iconAreaW = 0
+  if ICON_RFMD then
+    local iconH = clamp(slot.h - padY * 2, 8, 32)
+    local scale = math.max(1, math.floor(iconH / 32 * 100))
+    lcd.drawBitmap(ICON_RFMD, slot.x + padX, slot.y + padY, scale)
+    iconAreaW = iconH + padX + 2
+  end
+
+  local textX = slot.x + iconAreaW + padX
+  local textTop = slot.y + padY
+
+  if rate <= 0 then
+    drawCenteredLabel(slot, "---")
+    return
+  end
+
+  local value = math.floor(rate + 0.5)
+  lcd.drawText(textX, textTop, tostring(value), tf(MIDSIZE, color))
+
+  local unitY = textTop + 16
+  if unitY + 8 <= slot.y + slot.h then
+    lcd.drawText(textX, unitY, "Hz", SMLSIZE)
   end
 end
 
