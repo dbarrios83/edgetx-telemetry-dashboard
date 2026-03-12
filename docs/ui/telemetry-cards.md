@@ -200,7 +200,7 @@ Icon rules:
 
 Icon path:
 
-    /SCRIPTS/WIDGETS/TELEMETRY/icons/
+    /SCRIPTS/WIDGETS/FPVDASH/icons/
 
 Cards mainly used for diagnostics may omit icons and use text-only rendering.
 

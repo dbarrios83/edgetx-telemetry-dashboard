@@ -84,7 +84,7 @@ Icon assets:
 
 Runtime icon path:
 
-    /SCRIPTS/WIDGETS/TELEMETRY/icons/
+    /SCRIPTS/WIDGETS/FPVDASH/icons/
 
 ### 6.1 Telemetry Active
 When receiver telemetry is active, the top bar shows:

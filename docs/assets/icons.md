@@ -6,11 +6,11 @@ This document defines icon asset conventions and runtime usage for the EdgeTX te
 ## Runtime Path
 Icon assets are loaded from:
 
-    /SCRIPTS/WIDGETS/TELEMETRY/icons/
+    /SCRIPTS/WIDGETS/FPVDASH/icons/
 
 Repository location:
 
-    SCRIPTS/WIDGETS/TELEMETRY/icons/
+    SCRIPTS/WIDGETS/FPVDASH/icons/
 
 ## Core Icon Assets
 Current runtime icon files:

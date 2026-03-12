@@ -28,6 +28,16 @@ edgetx-telemetry-dashboard
 |  +- WIDGETS/
 |     +- FPVDASH/
 |        +- main.lua
+|        +- layout/
+|        |  +- layout.lua
+|        |  +- slots.lua
+|        +- render/
+|        |  +- topbar.lua
+|        |  +- sticks.lua
+|        |  +- cards.lua
+|        +- telemetry/
+|        |  +- read.lua
+|        |  +- state.lua
 |        +- icons/
 |           +- battery.png
 |           +- signal.png
@@ -66,6 +76,16 @@ Resulting SD card structure:
 ```text
 /SCRIPTS/WIDGETS/FPVDASH/
 	main.lua
+	layout/
+		layout.lua
+		slots.lua
+	render/
+		topbar.lua
+		sticks.lua
+		cards.lua
+	telemetry/
+		read.lua
+		state.lua
 	icons/
 		battery.png
 		signal.png
