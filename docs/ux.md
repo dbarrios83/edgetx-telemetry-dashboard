@@ -19,3 +19,9 @@
 - High-contrast foreground elements.
 - Minimal decorative noise during flight.
 - Predictable spacing and alignment across screen sizes.
+
+## Icon System
+- Icons are monochrome PNG assets designed for telemetry cards.
+- Icons follow a consistent visual system across metrics.
+- Icons are optimized for approximately 32-40 px rendering.
+- Icons are dynamically colored by telemetry state in the widget.

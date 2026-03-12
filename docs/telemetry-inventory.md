@@ -3,11 +3,24 @@
 ## Purpose
 This document inventories telemetry values available in EdgeTX and ExpressLRS for use by the telemetry dashboard.
 
+## Telemetry Sources
+Telemetry values available to the dashboard originate from the radio telemetry system.
+
+Common sources include:
+
+- ExpressLRS telemetry (CRSF protocol)
+- Flight controller telemetry forwarded through the receiver
+- GPS modules connected to the flight controller
+
+The dashboard reads these values from EdgeTX telemetry sensors.
+
+This helps later when writing Lua telemetry code.
+
 ## Telemetry Categories
 - Power telemetry
 - Radio link telemetry
 - GPS telemetry
-- Control input telemetry
+- Control input data
 - System telemetry
 - Flight telemetry
 
@@ -27,6 +40,27 @@ This document inventories telemetry values available in EdgeTX and ExpressLRS fo
 - Usefulness for the dashboard: Primary power health indicator used for warnings and landing decisions.
 - Importance: Critical telemetry.
 
+### Cell Voltage
+- Description: Average or individual battery cell voltage reported by the flight controller.
+- Unit: Volts (V)
+- Typical range: 4.2 -> 3.3 V per cell
+- Example values: 4.1 V, 3.8 V
+- Usefulness for the dashboard: Provides more precise battery health information than pack voltage alone.
+
+### Cell Count
+- Description: Number of cells detected in the battery pack.
+- Unit: cell count
+- Typical range: 1 -> 6
+- Example values: 4, 6
+- Usefulness for the dashboard: Allows correct interpretation of pack voltage and battery warnings.
+
+### Battery Percentage (Optional)
+- Description: Estimated remaining battery capacity.
+- Unit: percent (%)
+- Typical range: 0 -> 100%
+- Example values: 75%, 42%
+- Usefulness for the dashboard: Provides a simple high-level battery status indicator.
+
 ## Radio Link Telemetry
 
 ### Link Quality (LQ)
@@ -37,11 +71,19 @@ This document inventories telemetry values available in EdgeTX and ExpressLRS fo
 - Usefulness for the dashboard: Immediate link reliability indicator for risk awareness.
 
 ### RSSI
-- Description: Received Signal Strength Indicator for the control link.
+- Description: Received Signal Strength Indicator representing raw signal strength.
+- Note: In modern ExpressLRS systems Link Quality (LQ) is the primary link reliability metric while RSSI is mostly useful for diagnostics.
 - Unit: dBm
 - Typical range: -120 -> -30 dBm
 - Example values: -58 dBm, -74 dBm, -95 dBm
 - Usefulness for the dashboard: Signal strength trend monitoring and troubleshooting.
+
+### RSSI dB (Optional for MVP)
+- Description: Alternate RSSI representation exposed by some telemetry systems.
+- Unit: dB
+- Typical range: implementation dependent
+- Example values: -58 dB, -74 dB
+- Usefulness for the dashboard: Additional signal diagnostics where available.
 
 ### Packet Rate
 - Description: Current ExpressLRS packet update frequency.
@@ -73,7 +115,7 @@ This document inventories telemetry values available in EdgeTX and ExpressLRS fo
 - Example values: 0, 7, 14
 - Usefulness for the dashboard: Indicates GPS availability and navigation confidence.
 
-## Control Input Telemetry
+## Control Input Data
 
 ### Stick Positions
 - Description: Normalized control input positions from the radio sticks.
@@ -116,3 +158,47 @@ These values are useful for status indicators in the dashboard because they give
 - antenna
 - current draw
 - flight state indicators
+
+## Telemetry Data Model (Draft)
+The dashboard will eventually consume telemetry values through a normalized data structure.
+
+Example conceptual structure:
+
+```lua
+telemetry = {
+  power = {
+    voltage = 7.52,
+    cell_voltage = 3.76,
+    current = 12.4
+  },
+
+  link = {
+    lq = 100,
+    rssi = -58,
+    packet_rate = 250,
+    tx_power = 100,
+    antenna = 1
+  },
+
+  gps = {
+    sats = 14
+  },
+
+  control = {
+    throttle = 35,
+    yaw = -12,
+    pitch = 8,
+    roll = -4
+  },
+
+  flight = {
+    armed = false,
+    mode = "Acro",
+    failsafe = false
+  }
+}
+```
+
+This structure helps future code stay clear and scalable with paths such as `telemetry.link.lq` and `telemetry.power.voltage`.
+
+This structure is not final and may evolve as the dashboard implementation progresses.

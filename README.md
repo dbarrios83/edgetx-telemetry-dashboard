@@ -1,22 +1,43 @@
-# edgetx-telemetry-dashboard
+# EdgeTX Telemetry Dashboard
 
-EdgeTX telemetry dashboard project scaffold for FPV radio widgets.
+A modern telemetry dashboard for EdgeTX radios designed for FPV pilots.
+
+Goals:
+- Improve telemetry readability
+- Provide a clean dashboard UI
+- Maintain high performance on EdgeTX hardware
+
+Features (planned):
+- Battery telemetry panel
+- Link quality indicators
+- Satellite count display
+- Stick monitor
+- Modern icon pack
+- Dark theme UI
+
+Status: 🚧 Early Development
 
 ## Repository Structure
 
 ```text
 edgetx-telemetry-dashboard
 |
-+- lua/
-|  +- widgets/
-|     +- dashboard/
++- SCRIPTS/
+|  +- WIDGETS/
+|     +- TELEMETRY/
 |        +- dashboard.lua
-|
-+- icons/
-|  +- battery/
-|  +- satellites/
-|  +- lq/
-|  +- rssi/
+|        +- icons/
+|           +- battery.png
+|           +- signal.png
+|           +- sat.png
+|           +- antenna.png
+|           +- current.png
+|           +- radio.png
+|           +- link.png
+|           +- link_off.png
+|           +- clock.png
+|           +- drone.png
+|           +- rfmd.png
 |
 +- design/
 |  +- wireframes/
@@ -27,9 +48,34 @@ edgetx-telemetry-dashboard
 |  +- ux.md
 |
 +- tests/
-+- examples/
+|  +- examples/
 +- README.md
 +- LICENSE
+```
+
+## Deployment
+
+This repository mirrors the EdgeTX SD card runtime layout.
+
+Copy the `SCRIPTS` folder directly to the EdgeTX SD card.
+
+Resulting SD card structure:
+
+```text
+/SCRIPTS/WIDGETS/TELEMETRY/
+	dashboard.lua
+	icons/
+		battery.png
+		signal.png
+		sat.png
+		antenna.png
+		current.png
+		radio.png
+		link.png
+		link_off.png
+		clock.png
+		drone.png
+		rfmd.png
 ```
 
 ## Next Milestones

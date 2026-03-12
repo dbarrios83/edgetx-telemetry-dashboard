@@ -24,7 +24,6 @@ The design objective is to quickly confirm that the aircraft is safe and ready t
 ## Critical Telemetry
 - Battery voltage
 - Link Quality (LQ)
-- RSSI
 - Packet rate
 
 ### Why Critical
@@ -36,6 +35,8 @@ These values directly affect:
 Abnormal values should block arming until investigated.
 
 ## Important Telemetry
+- RSSI
+- Cell voltage
 - Satellite count
 - Current draw
 - Flight mode
@@ -43,6 +44,7 @@ Abnormal values should block arming until investigated.
 
 ### Why Important
 These values provide operational context and system state confirmation, but they are not always urgent.
+Cell voltage is especially useful for checking per-cell voltage consistency before flying.
 
 ## Secondary Telemetry
 - TX power
@@ -53,11 +55,10 @@ These values provide operational context and system state confirmation, but they
 ### Why Secondary
 These values are useful for diagnostics, troubleshooting, and tuning, but are not required for normal pre-flight checks.
 
-## Always-Visible Telemetry
+## Always-Visible Status Indicators
 The following values must always be visible in the dashboard layout:
 - Battery voltage
 - Link Quality (LQ)
-- RSSI
 - Packet rate
 
 These values should live in the primary status row or primary dashboard area.
@@ -66,10 +67,11 @@ These values should live in the primary status row or primary dashboard area.
 ### Primary Elements
 - Battery indicator
 - LQ indicator
-- RSSI indicator
 - Packet rate indicator
 
 ### Secondary Elements
+- RSSI indicator
+- Cell voltage
 - Satellite count
 - Current draw
 - Flight state indicators
@@ -82,6 +84,6 @@ These values should live in the primary status row or primary dashboard area.
 ## Acceptance Mapping
 - Telemetry values are classified into priority levels.
 - Critical telemetry is clearly defined.
-- Always-visible telemetry is identified.
+- Always-visible status indicators are identified.
 - Prioritization reflects FPV pilot workflow (pre-flight first).
 - Results are ready to guide dashboard UI design.
