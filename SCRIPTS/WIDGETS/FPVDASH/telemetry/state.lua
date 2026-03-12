@@ -40,8 +40,8 @@ end
 
 -- Evaluate link quality state from percentage (0–100).
 -- Thresholds: OK > 90, WARNING 70–90, CRITICAL < 70
-function M.evaluateLinkQuality(lq)
-  if lq == nil then
+function M.evaluateLinkQuality(lq, isAvailable)
+  if not isAvailable or lq == nil then
     return M.UNKNOWN
   end
   if lq > 90 then
@@ -55,8 +55,8 @@ end
 
 -- Evaluate RSSI state from a dBm value (typically negative for CRSF/ELRS).
 -- Thresholds: OK > -65 dBm, WARNING -65 to -85 dBm, CRITICAL < -85 dBm
-function M.evaluateRSSI(rssi)
-  if rssi == nil or rssi == 0 then
+function M.evaluateRSSI(rssi, isAvailable)
+  if not isAvailable or rssi == nil or rssi == 0 then
     return M.UNKNOWN
   end
   if rssi > -65 then
@@ -70,8 +70,8 @@ end
 
 -- Evaluate satellite count state.
 -- Thresholds: OK >= 10, WARNING 6–9, CRITICAL < 6
-function M.evaluateSatellites(sats)
-  if sats == nil or sats == 0 then
+function M.evaluateSatellites(sats, isAvailable)
+  if not isAvailable or sats == nil then
     return M.UNKNOWN
   end
   if sats >= 10 then
@@ -81,6 +81,20 @@ function M.evaluateSatellites(sats)
   else
     return M.CRITICAL
   end
+end
+
+-- Evaluate current draw state.
+-- Current is primarily informational for now, so available readings map to OK.
+function M.evaluateCurrent(current, isAvailable)
+  if not isAvailable or current == nil then
+    return M.UNKNOWN
+  end
+
+  if current < 0 then
+    return M.UNKNOWN
+  end
+
+  return M.OK
 end
 
 -- Evaluate TX power state.
@@ -97,8 +111,8 @@ end
 
 -- Evaluate packet rate state.
 -- Any positive packet rate is OK; zero or nil is UNKNOWN.
-function M.evaluatePacketRate(rate)
-  if rate == nil or rate <= 0 then
+function M.evaluatePacketRate(rate, isAvailable)
+  if not isAvailable or rate == nil or rate <= 0 then
     return M.UNKNOWN
   end
   return M.OK
@@ -112,19 +126,26 @@ function M.evaluate(snapshot)
       battery     = M.DISCONNECTED,
       linkQuality = M.DISCONNECTED,
       rssi        = M.DISCONNECTED,
+      current     = M.DISCONNECTED,
       satellites  = M.DISCONNECTED,
+      sats        = M.DISCONNECTED,
       txPower     = M.DISCONNECTED,
       packetRate  = M.DISCONNECTED,
     }
   end
 
+  local available = snapshot.available or {}
+  local satellitesState = M.evaluateSatellites(snapshot.satellites, available.satellites)
+
   return {
     battery     = M.evaluateBattery(snapshot.battery),
-    linkQuality = M.evaluateLinkQuality(snapshot.linkQuality),
-    rssi        = M.evaluateRSSI(snapshot.rssi),
-    satellites  = M.evaluateSatellites(snapshot.satellites),
+    linkQuality = M.evaluateLinkQuality(snapshot.linkQuality, available.linkQuality),
+    rssi        = M.evaluateRSSI(snapshot.rssi, available.rssi),
+    current     = M.evaluateCurrent(snapshot.current, available.current),
+    satellites  = satellitesState,
+    sats        = satellitesState,
     txPower     = M.evaluateTxPower(snapshot.txPower),
-    packetRate  = M.evaluatePacketRate(snapshot.packetRate),
+    packetRate  = M.evaluatePacketRate(snapshot.packetRate, available.packetRate),
   }
 end
 

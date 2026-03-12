@@ -17,6 +17,8 @@ local _RED    = (type(RED)    == "number") and RED    or _WHITE
 local ICON_BATTERY = nil
 local ICON_SIGNAL = nil
 local ICON_RFMD = nil
+local ICON_CURRENT = nil
+local ICON_SAT = nil
 do
   if Bitmap then
     local roots = {
@@ -48,13 +50,32 @@ do
         break
       end
     end
+
+    for _, root in ipairs(roots) do
+      local bm = Bitmap.open(root .. "current.png")
+      if bm then
+        ICON_CURRENT = bm
+        break
+      end
+    end
+
+    for _, root in ipairs(roots) do
+      local bm = Bitmap.open(root .. "sat.png")
+      if bm then
+        ICON_SAT = bm
+        break
+      end
+    end
   end
 end
 
 local icons = {
   battery = ICON_BATTERY,
+  lq = ICON_SIGNAL,
   signal = ICON_SIGNAL,
   rfmd = ICON_RFMD,
+  current = ICON_CURRENT,
+  sat = ICON_SAT,
 }
 
 -- ─── Slot order ───────────────────────────────────────────────────────────────
@@ -133,7 +154,7 @@ local function drawCard(rect, spec)
 
   local isAvailable = true
   if spec.isAvailable then
-    isAvailable = spec.isAvailable(value)
+    isAvailable = spec.isAvailable(value, spec)
   else
     isAvailable = value ~= nil and value ~= ""
   end
@@ -184,6 +205,10 @@ local function availableNonZero(v)
   return type(v) == "number" and v ~= 0
 end
 
+local function availableNotDisconnected(v, spec)
+  return type(v) == "number" and spec and spec.state ~= "DISCONNECTED"
+end
+
 local function formatBatteryValue(v)
   return string.format("%.1fV", v)
 end
@@ -199,6 +224,18 @@ local function formatRSSIValue(v)
 end
 
 local function formatRateValue(v)
+  return tostring(math.floor(v + 0.5))
+end
+
+local function formatPercentValue(v)
+  return tostring(math.floor(v + 0.5))
+end
+
+local function formatCurrentValue(v)
+  return string.format("%.1f", v)
+end
+
+local function formatSatValue(v)
   return tostring(math.floor(v + 0.5))
 end
 
@@ -241,6 +278,45 @@ local RATE_CARD_SPEC = {
   placeholder = "---",
 }
 
+local LQ_CARD_SPEC = {
+  icon = icons.lq,
+  state = "UNKNOWN",
+  value = 0,
+  isAvailable = availableNotDisconnected,
+  formatValue = formatPercentValue,
+  unit = "%",
+  valueFlags = MIDSIZE,
+  secondaryFlags = SMLSIZE,
+  unitOffset = 16,
+  placeholder = "---",
+}
+
+local CURRENT_CARD_SPEC = {
+  icon = icons.current,
+  state = "UNKNOWN",
+  value = 0,
+  isAvailable = availableNotDisconnected,
+  formatValue = formatCurrentValue,
+  unit = "A",
+  valueFlags = MIDSIZE,
+  secondaryFlags = SMLSIZE,
+  unitOffset = 16,
+  placeholder = "---",
+}
+
+local SAT_CARD_SPEC = {
+  icon = icons.sat,
+  state = "UNKNOWN",
+  value = 0,
+  isAvailable = availableNotDisconnected,
+  formatValue = formatSatValue,
+  secondaryText = "SAT",
+  valueFlags = MIDSIZE,
+  secondaryFlags = SMLSIZE,
+  unitOffset = 16,
+  placeholder = "---",
+}
+
 -- ─── Battery card (P1) ────────────────────────────────────────────────────────
 -- Displays total pack voltage and detected cell count inside the P1 slot.
 -- Cell count uses: cells = floor(voltage / 4.2) + 1  (LiPo max 4.2 V/cell)
@@ -260,6 +336,17 @@ local function drawBattery(slot, telemetry, state)
   BATTERY_CARD_SPEC.secondaryText = cells .. "S"
 
   drawCard(slot, BATTERY_CARD_SPEC)
+end
+
+-- ─── Link Quality card (P2) ─────────────────────────────────────────────────
+local function drawLinkQuality(slot, telemetry, state)
+  if not slot then return end
+
+  LQ_CARD_SPEC.icon = icons.lq
+  LQ_CARD_SPEC.value = (telemetry and telemetry.linkQuality) or 0
+  LQ_CARD_SPEC.state = (state and state.linkQuality) or "UNKNOWN"
+
+  drawCard(slot, LQ_CARD_SPEC)
 end
 
 -- ─── RSSI card (P4) ──────────────────────────────────────────────────────────
@@ -292,6 +379,28 @@ local function drawPacketRate(slot, telemetry, state)
   drawCard(slot, RATE_CARD_SPEC)
 end
 
+-- ─── Current card (P5) ──────────────────────────────────────────────────────
+local function drawCurrent(slot, telemetry, state)
+  if not slot then return end
+
+  CURRENT_CARD_SPEC.icon = icons.current
+  CURRENT_CARD_SPEC.value = (telemetry and telemetry.current) or 0
+  CURRENT_CARD_SPEC.state = (state and state.current) or "UNKNOWN"
+
+  drawCard(slot, CURRENT_CARD_SPEC)
+end
+
+-- ─── Satellites card (P6) ───────────────────────────────────────────────────
+local function drawSatellites(slot, telemetry, state)
+  if not slot then return end
+
+  SAT_CARD_SPEC.icon = icons.sat
+  SAT_CARD_SPEC.value = (telemetry and (telemetry.sats or telemetry.satellites)) or 0
+  SAT_CARD_SPEC.state = (state and (state.sats or state.satellites)) or "UNKNOWN"
+
+  drawCard(slot, SAT_CARD_SPEC)
+end
+
 -- ─── Public API ───────────────────────────────────────────────────────────────
 
 M.icons = icons
@@ -315,17 +424,26 @@ function M.draw(layout, slots, telemetry, state)
   -- P1: battery card (fully implemented by issue #38).
   drawBattery(slots.primary and slots.primary.P1, telemetry, state)
 
+  -- P2: link quality card (implemented by issue #56).
+  drawLinkQuality(slots.primary and slots.primary.P2, telemetry, state)
+
   -- P3: packet-rate card (implemented by issue #41).
   drawPacketRate(slots.primary and slots.primary.P3, telemetry, state)
 
   -- P4: RSSI card (implemented by issue #43).
   drawRSSI(slots.primary and slots.primary.P4, telemetry, state)
 
+  -- P5: current card (implemented by issue #56).
+  drawCurrent(slots.primary and slots.primary.P5, telemetry, state)
+
+  -- P6: satellites card (implemented by issue #56).
+  drawSatellites(slots.primary and slots.primary.P6, telemetry, state)
+
   -- Remaining primary slots: skeleton placeholder until their cards are added.
   for i = 2, #PRIMARY_ORDER do
     local id   = PRIMARY_ORDER[i]
     local slot = slots.primary and slots.primary[id]
-    if slot and id ~= "P3" and id ~= "P4" then
+    if slot and id ~= "P2" and id ~= "P3" and id ~= "P4" and id ~= "P5" and id ~= "P6" then
       drawBox(slot, id)
     end
   end
