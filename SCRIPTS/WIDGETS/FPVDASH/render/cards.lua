@@ -225,6 +225,10 @@ local function availableNonZero(v)
   return type(v) == "number" and v ~= 0
 end
 
+local function availableZeroOrPositive(v)
+  return type(v) == "number" and v >= 0
+end
+
 local function availableNotDisconnected(v, spec)
   return type(v) == "number" and spec and spec.state ~= "DISCONNECTED"
 end
@@ -280,7 +284,14 @@ local function formatCapacityValue(v)
 end
 
 local function formatAntennaValue(v)
-  return "ANT" .. tostring(math.floor(v + 0.5))
+  local raw = math.floor(v + 0.5)
+
+  -- ELRS commonly reports active antenna as 0/1; display as ANT1/ANT2.
+  if raw == 0 or raw == 1 then
+    return "ANT" .. tostring(raw + 1)
+  end
+
+  return "ANT" .. tostring(raw)
 end
 
 local BATTERY_CARD_SPEC = {
@@ -420,7 +431,7 @@ local DIAG_ANTENNA_CARD_SPEC = {
   icon = icons.antenna,
   state = nil,
   value = 0,
-  isAvailable = availablePositive,
+  isAvailable = availableZeroOrPositive,
   formatValue = formatAntennaValue,
   valueFlags = SMLSIZE,
   placeholder = "",
