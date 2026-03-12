@@ -51,6 +51,12 @@ do
   end
 end
 
+local icons = {
+  battery = ICON_BATTERY,
+  signal = ICON_SIGNAL,
+  rfmd = ICON_RFMD,
+}
+
 -- ─── Slot order ───────────────────────────────────────────────────────────────
 local PRIMARY_ORDER  = { "P1", "P2", "P3", "P4", "P5", "P6" }
 local CONTEXT_ORDER  = { "C1", "C2" }
@@ -110,17 +116,137 @@ local function drawSlots(group, order)
   end
 end
 
+-- Draw one telemetry card with centralized styling and layout behavior.
+-- Example:
+-- drawCard(rect, { icon = icons.signal, value = telemetry.rssi, unit = "dBm", state = state.rssi })
+local function drawCard(rect, spec)
+  if not rect or not spec then
+    return
+  end
+
+  lcd.drawRectangle(rect.x, rect.y, rect.w, rect.h)
+
+  local padX = spec.padX or 2
+  local padY = spec.padY or 2
+  local textTop = rect.y + padY
+  local value = spec.value
+
+  local isAvailable = true
+  if spec.isAvailable then
+    isAvailable = spec.isAvailable(value)
+  else
+    isAvailable = value ~= nil and value ~= ""
+  end
+
+  if not isAvailable then
+    drawCenteredLabel(rect, spec.placeholder or "---")
+    return
+  end
+
+  local iconAreaW = 0
+  if spec.icon then
+    local iconH = clamp(rect.h - padY * 2, 8, 32)
+    local scale = math.max(1, math.floor(iconH / 32 * 100))
+    lcd.drawBitmap(spec.icon, rect.x + padX, rect.y + padY, scale)
+    iconAreaW = iconH + padX + 2
+  end
+
+  local textX = rect.x + iconAreaW + padX
+
+  local color = stateColor(spec.state)
+  local valueText
+  if spec.formatValue then
+    valueText = spec.formatValue(value)
+  else
+    valueText = tostring(value)
+  end
+
+  lcd.drawText(textX, textTop, valueText, tf(spec.valueFlags or MIDSIZE, color))
+
+  local subText = spec.secondaryText
+  if not subText and spec.unit then
+    subText = spec.unit
+  end
+
+  if subText then
+    local subY = textTop + (spec.unitOffset or 16)
+    if subY + 8 <= rect.y + rect.h then
+      lcd.drawText(textX, subY, subText, spec.secondaryFlags or SMLSIZE)
+    end
+  end
+end
+
+local function availablePositive(v)
+  return type(v) == "number" and v > 0
+end
+
+local function availableNonZero(v)
+  return type(v) == "number" and v ~= 0
+end
+
+local function formatBatteryValue(v)
+  return string.format("%.1fV", v)
+end
+
+local function formatRSSIValue(v)
+  local value
+  if v >= 0 then
+    value = math.floor(v + 0.5)
+  else
+    value = math.ceil(v - 0.5)
+  end
+  return tostring(value)
+end
+
+local function formatRateValue(v)
+  return tostring(math.floor(v + 0.5))
+end
+
+local BATTERY_CARD_SPEC = {
+  icon = icons.battery,
+  state = "UNKNOWN",
+  value = 0,
+  isAvailable = availablePositive,
+  formatValue = formatBatteryValue,
+  valueFlags = MIDSIZE,
+  secondaryFlags = SMLSIZE,
+  secondaryText = nil,
+  unitOffset = 16,
+  placeholder = "---",
+}
+
+local RSSI_CARD_SPEC = {
+  icon = icons.signal,
+  state = "UNKNOWN",
+  value = 0,
+  isAvailable = availableNonZero,
+  formatValue = formatRSSIValue,
+  unit = "dBm",
+  valueFlags = MIDSIZE,
+  secondaryFlags = SMLSIZE,
+  unitOffset = 16,
+  placeholder = "---",
+}
+
+local RATE_CARD_SPEC = {
+  icon = icons.rfmd,
+  state = "UNKNOWN",
+  value = 0,
+  isAvailable = availablePositive,
+  formatValue = formatRateValue,
+  unit = "Hz",
+  valueFlags = MIDSIZE,
+  secondaryFlags = SMLSIZE,
+  unitOffset = 16,
+  placeholder = "---",
+}
+
 -- ─── Battery card (P1) ────────────────────────────────────────────────────────
 -- Displays total pack voltage and detected cell count inside the P1 slot.
 -- Cell count uses: cells = floor(voltage / 4.2) + 1  (LiPo max 4.2 V/cell)
 local function drawBattery(slot, telemetry, state)
   if not slot then return end
-
-  lcd.drawRectangle(slot.x, slot.y, slot.w, slot.h)
-
   local voltage = (telemetry and telemetry.battery) or 0
-  local batState = (state and state.battery) or "UNKNOWN"
-  local color    = stateColor(batState)
 
   -- Auto-detect cell count from max-charge voltage (4.2 V/cell).
   local cells = 1
@@ -128,37 +254,12 @@ local function drawBattery(slot, telemetry, state)
     cells = math.max(1, math.floor(voltage / 4.2) + 1)
   end
 
-  local padX = 2
-  local padY = 2
+  BATTERY_CARD_SPEC.icon = icons.battery
+  BATTERY_CARD_SPEC.value = voltage
+  BATTERY_CARD_SPEC.state = (state and state.battery) or "UNKNOWN"
+  BATTERY_CARD_SPEC.secondaryText = cells .. "S"
 
-  -- Optional battery icon at left edge, scaled to fit card height.
-  local iconAreaW = 0
-  if ICON_BATTERY then
-    -- Icons are designed at 32 px; scale proportionally to card interior.
-    local iconH = clamp(slot.h - padY * 2, 8, 32)
-    local scale = math.max(1, math.floor(iconH / 32 * 100))
-    lcd.drawBitmap(ICON_BATTERY, slot.x + padX, slot.y + padY, scale)
-    iconAreaW = iconH + padX + 2
-  end
-
-  local textX = slot.x + iconAreaW + padX
-
-  -- Primary value: total voltage in MIDSIZE with state colour.
-  -- MIDSIZE glyphs are ~16 px tall.
-  local voltStr = string.format("%.1fV", voltage)
-  lcd.drawText(textX, slot.y + padY, voltStr, tf(MIDSIZE, color))
-
-  -- Secondary value: cell config ("4S") in small text below voltage.
-  local subY = slot.y + padY + 16
-  if subY + 8 <= slot.y + slot.h then
-    local cellStr = cells .. "S"
-    lcd.drawText(textX, subY, cellStr, SMLSIZE)
-  end
-
-  -- Show "---" when telemetry is absent so the card never looks stale.
-  if voltage <= 0 then
-    drawCenteredLabel(slot, "---")
-  end
+  drawCard(slot, BATTERY_CARD_SPEC)
 end
 
 -- ─── RSSI card (P4) ──────────────────────────────────────────────────────────
@@ -169,43 +270,11 @@ end
 local function drawRSSI(slot, telemetry, state)
   if not slot then return end
 
-  lcd.drawRectangle(slot.x, slot.y, slot.w, slot.h)
+  RSSI_CARD_SPEC.icon = icons.signal
+  RSSI_CARD_SPEC.value = (telemetry and telemetry.rssi) or 0
+  RSSI_CARD_SPEC.state = (state and state.rssi) or "UNKNOWN"
 
-  local rssi = (telemetry and telemetry.rssi) or 0
-  local rssiState = (state and state.rssi) or "UNKNOWN"
-  local color = stateColor(rssiState)
-
-  local padX = 2
-  local padY = 2
-
-  local iconAreaW = 0
-  if ICON_SIGNAL then
-    local iconH = clamp(slot.h - padY * 2, 8, 32)
-    local scale = math.max(1, math.floor(iconH / 32 * 100))
-    lcd.drawBitmap(ICON_SIGNAL, slot.x + padX, slot.y + padY, scale)
-    iconAreaW = iconH + padX + 2
-  end
-
-  local textX = slot.x + iconAreaW + padX
-  local textTop = slot.y + padY
-
-  if rssi == 0 then
-    drawCenteredLabel(slot, "---")
-    return
-  end
-
-  local value
-  if rssi >= 0 then
-    value = math.floor(rssi + 0.5)
-  else
-    value = math.ceil(rssi - 0.5)
-  end
-  lcd.drawText(textX, textTop, tostring(value), tf(MIDSIZE, color))
-
-  local unitY = textTop + 16
-  if unitY + 8 <= slot.y + slot.h then
-    lcd.drawText(textX, unitY, "dBm", SMLSIZE)
-  end
+  drawCard(slot, RSSI_CARD_SPEC)
 end
 
 -- ─── Packet Rate card (P3) ───────────────────────────────────────────────────
@@ -216,41 +285,17 @@ end
 local function drawPacketRate(slot, telemetry, state)
   if not slot then return end
 
-  lcd.drawRectangle(slot.x, slot.y, slot.w, slot.h)
+  RATE_CARD_SPEC.icon = icons.rfmd
+  RATE_CARD_SPEC.value = (telemetry and telemetry.packetRate) or 0
+  RATE_CARD_SPEC.state = (state and state.packetRate) or "UNKNOWN"
 
-  local rate = (telemetry and telemetry.packetRate) or 0
-  local rateState = (state and state.packetRate) or "UNKNOWN"
-  local color = stateColor(rateState)
-
-  local padX = 2
-  local padY = 2
-
-  local iconAreaW = 0
-  if ICON_RFMD then
-    local iconH = clamp(slot.h - padY * 2, 8, 32)
-    local scale = math.max(1, math.floor(iconH / 32 * 100))
-    lcd.drawBitmap(ICON_RFMD, slot.x + padX, slot.y + padY, scale)
-    iconAreaW = iconH + padX + 2
-  end
-
-  local textX = slot.x + iconAreaW + padX
-  local textTop = slot.y + padY
-
-  if rate <= 0 then
-    drawCenteredLabel(slot, "---")
-    return
-  end
-
-  local value = math.floor(rate + 0.5)
-  lcd.drawText(textX, textTop, tostring(value), tf(MIDSIZE, color))
-
-  local unitY = textTop + 16
-  if unitY + 8 <= slot.y + slot.h then
-    lcd.drawText(textX, unitY, "Hz", SMLSIZE)
-  end
+  drawCard(slot, RATE_CARD_SPEC)
 end
 
 -- ─── Public API ───────────────────────────────────────────────────────────────
+
+M.icons = icons
+M.drawCard = drawCard
 
 -- Live card rendering pipeline.
 -- P1 shows the battery card; all remaining slots render skeleton until
