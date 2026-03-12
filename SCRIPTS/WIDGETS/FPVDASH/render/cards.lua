@@ -271,6 +271,18 @@ local function formatFlightModeValue(v)
   return tostring(v)
 end
 
+local function formatDiagRSSIValue(v)
+  return string.format("%sdBm", formatRSSIValue(v))
+end
+
+local function formatCapacityValue(v)
+  return string.format("%dmAh", math.floor(v + 0.5))
+end
+
+local function formatAntennaValue(v)
+  return "ANT" .. tostring(math.floor(v + 0.5))
+end
+
 local BATTERY_CARD_SPEC = {
   icon = icons.battery,
   state = "UNKNOWN",
@@ -372,6 +384,46 @@ local FLIGHT_MODE_CARD_SPEC = {
   secondaryFlags = SMLSIZE,
   unitOffset = 16,
   placeholder = "---",
+}
+
+local DIAG_RSSI1_CARD_SPEC = {
+  icon = icons.signal,
+  state = nil,
+  value = 0,
+  isAvailable = availableNonZero,
+  formatValue = formatDiagRSSIValue,
+  valueFlags = SMLSIZE,
+  placeholder = "",
+}
+
+local DIAG_RSSI2_CARD_SPEC = {
+  icon = icons.signal,
+  state = nil,
+  value = 0,
+  isAvailable = availableNonZero,
+  formatValue = formatDiagRSSIValue,
+  valueFlags = SMLSIZE,
+  placeholder = "",
+}
+
+local DIAG_CAPACITY_CARD_SPEC = {
+  icon = icons.battery,
+  state = nil,
+  value = 0,
+  isAvailable = availablePositive,
+  formatValue = formatCapacityValue,
+  valueFlags = SMLSIZE,
+  placeholder = "",
+}
+
+local DIAG_ANTENNA_CARD_SPEC = {
+  icon = icons.antenna,
+  state = nil,
+  value = 0,
+  isAvailable = availablePositive,
+  formatValue = formatAntennaValue,
+  valueFlags = SMLSIZE,
+  placeholder = "",
 }
 
 -- ─── Battery card (P1) ────────────────────────────────────────────────────────
@@ -485,6 +537,57 @@ local function drawFlightMode(slot, telemetry)
   drawCard(slot, FLIGHT_MODE_CARD_SPEC)
 end
 
+-- ─── Diagnostic optional cards (O1..O4) ─────────────────────────────────────
+local function sensorAvailable(telemetry, field)
+  return telemetry
+    and telemetry.available
+    and telemetry.available[field] == true
+end
+
+local function drawDiagRSSI1(slot, telemetry)
+  if not slot or not sensorAvailable(telemetry, "rssi1") then
+    return
+  end
+
+  DIAG_RSSI1_CARD_SPEC.icon = icons.signal
+  DIAG_RSSI1_CARD_SPEC.value = telemetry.rssi1 or 0
+
+  drawCard(slot, DIAG_RSSI1_CARD_SPEC)
+end
+
+local function drawDiagRSSI2(slot, telemetry)
+  if not slot or not sensorAvailable(telemetry, "rssi2") then
+    return
+  end
+
+  DIAG_RSSI2_CARD_SPEC.icon = icons.signal
+  DIAG_RSSI2_CARD_SPEC.value = telemetry.rssi2 or 0
+
+  drawCard(slot, DIAG_RSSI2_CARD_SPEC)
+end
+
+local function drawDiagCapacity(slot, telemetry)
+  if not slot or not sensorAvailable(telemetry, "capacity") then
+    return
+  end
+
+  DIAG_CAPACITY_CARD_SPEC.icon = icons.battery
+  DIAG_CAPACITY_CARD_SPEC.value = telemetry.capacity or 0
+
+  drawCard(slot, DIAG_CAPACITY_CARD_SPEC)
+end
+
+local function drawDiagAntenna(slot, telemetry)
+  if not slot or not sensorAvailable(telemetry, "activeAntenna") then
+    return
+  end
+
+  DIAG_ANTENNA_CARD_SPEC.icon = icons.antenna
+  DIAG_ANTENNA_CARD_SPEC.value = telemetry.activeAntenna or 0
+
+  drawCard(slot, DIAG_ANTENNA_CARD_SPEC)
+end
+
 -- ─── Public API ───────────────────────────────────────────────────────────────
 
 M.icons = icons
@@ -499,7 +602,6 @@ function M.draw(layout, slots, telemetry, state)
   -- Region outlines.
   lcd.drawRectangle(layout.primaryGrid.x,  layout.primaryGrid.y,
                     layout.primaryGrid.w,  layout.primaryGrid.h)
-  drawLabelAbove(layout.primaryGrid, "Primary Grid")
   lcd.drawRectangle(layout.contextRow.x,  layout.contextRow.y,
                     layout.contextRow.w,  layout.contextRow.h)
   lcd.drawRectangle(layout.diagnostics.x, layout.diagnostics.y,
@@ -536,8 +638,11 @@ function M.draw(layout, slots, telemetry, state)
   drawTxPower(slots.context and slots.context.C1, telemetry, state)
   drawFlightMode(slots.context and slots.context.C2, telemetry)
 
-  -- Diagnostics row remains skeleton until optional cards are implemented.
-  drawSlots(slots.optional, OPTIONAL_ORDER)
+  -- O1..O4: diagnostics optional cards (implemented by issue #58).
+  drawDiagRSSI1(slots.optional and slots.optional.O1, telemetry)
+  drawDiagRSSI2(slots.optional and slots.optional.O2, telemetry)
+  drawDiagCapacity(slots.optional and slots.optional.O3, telemetry)
+  drawDiagAntenna(slots.optional and slots.optional.O4, telemetry)
 end
 
 -- Pure wireframe for layout verification / development.
@@ -545,7 +650,6 @@ function M.drawSkeleton(layout, slots)
   if not layout or not slots then return end
 
   drawBox(layout.primaryGrid)
-  drawLabelAbove(layout.primaryGrid, "Primary Grid")
   drawBox(layout.contextRow, "Context Row")
   drawBox(layout.diagnostics, "Diagnostics")
 
