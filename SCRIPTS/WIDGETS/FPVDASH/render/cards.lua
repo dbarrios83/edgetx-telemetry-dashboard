@@ -11,6 +11,7 @@ local _WHITE  = (type(WHITE)  == "number") and WHITE  or 0xFFFF
 local _GREEN  = (type(GREEN)  == "number") and GREEN  or _WHITE
 local _YELLOW = (type(YELLOW) == "number") and YELLOW or _WHITE
 local _RED    = (type(RED)    == "number") and RED    or _WHITE
+local _DBLSIZE = (type(DBLSIZE) == "number") and DBLSIZE or MIDSIZE
 
 -- ─── Icon handles ─────────────────────────────────────────────────────────────
 -- Loaded once at module startup; nil when asset is unavailable or Bitmap absent.
@@ -171,6 +172,11 @@ local function drawCard(rect, spec)
   local padY = spec.padY or 2
   local textTop = rect.y + padY
   local value = spec.value
+  local stateClr = stateColor(spec.state)
+
+  if spec.showStateAccent and lcd.drawFilledRectangle then
+    lcd.drawFilledRectangle(rect.x + 1, rect.y + 1, rect.w - 2, 2, stateClr)
+  end
 
   local isAvailable = true
   if spec.isAvailable then
@@ -194,7 +200,7 @@ local function drawCard(rect, spec)
 
   local textX = rect.x + iconAreaW + padX
 
-  local color = stateColor(spec.state)
+  local valueColor = spec.valueColor or stateClr
   local valueText
   if spec.formatValue then
     valueText = spec.formatValue(value)
@@ -202,7 +208,7 @@ local function drawCard(rect, spec)
     valueText = tostring(value)
   end
 
-  lcd.drawText(textX, textTop, valueText, tf(spec.valueFlags or MIDSIZE, color))
+  lcd.drawText(textX, textTop, valueText, tf(spec.valueFlags or MIDSIZE, valueColor))
 
   local subText = spec.secondaryText
   if not subText and spec.unit then
@@ -213,6 +219,25 @@ local function drawCard(rect, spec)
     local subY = textTop + (spec.unitOffset or 16)
     if subY + 8 <= rect.y + rect.h then
       lcd.drawText(textX, subY, subText, spec.secondaryFlags or SMLSIZE)
+    end
+  end
+
+  if type(spec.progressPercent) == "number" then
+    local p = clamp(spec.progressPercent, 0, 1)
+    local barH = 4
+    local barX = textX
+    local barY = rect.y + rect.h - barH - 2
+    local barW = rect.x + rect.w - barX - 2
+
+    if barW > 8 and barY > textTop then
+      lcd.drawRectangle(barX, barY, barW, barH)
+
+      if lcd.drawFilledRectangle then
+        local fillW = math.floor((barW - 2) * p + 0.5)
+        if fillW > 0 then
+          lcd.drawFilledRectangle(barX + 1, barY + 1, fillW, barH - 2, stateClr)
+        end
+      end
     end
   end
 end
@@ -296,10 +321,13 @@ local BATTERY_CARD_SPEC = {
   value = 0,
   isAvailable = availablePositive,
   formatValue = formatBatteryValue,
-  valueFlags = MIDSIZE,
+  valueFlags = _DBLSIZE,
+  valueColor = _WHITE,
   secondaryFlags = SMLSIZE,
   secondaryText = nil,
   unitOffset = 16,
+  showStateAccent = true,
+  progressPercent = nil,
   placeholder = "---",
 }
 
@@ -455,6 +483,9 @@ local function drawBattery(slot, telemetry, state)
   BATTERY_CARD_SPEC.value = cellVoltage
   BATTERY_CARD_SPEC.state = (state and state.battery) or "UNKNOWN"
   BATTERY_CARD_SPEC.secondaryText = cells .. "S"
+
+  -- Approximate battery fill from per-cell voltage for visual scanning.
+  BATTERY_CARD_SPEC.progressPercent = clamp((cellVoltage - 3.3) / 0.9, 0, 1)
 
   drawCard(slot, BATTERY_CARD_SPEC)
 end
