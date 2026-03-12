@@ -7,17 +7,10 @@ local M = {}
 
 -- ─── Color constants ──────────────────────────────────────────────────────────
 -- Guard against monochrome builds where colour globals may be absent.
-local function rgb(r, g, b, fallback)
-  if lcd and lcd.RGB then
-    return lcd.RGB(r, g, b)
-  end
-  return fallback
-end
-
-local _WHITE  = (type(WHITE)  == "number") and WHITE or 0xFFFF
-local _GREEN  = (type(GREEN)  == "number") and GREEN or rgb(80, 220, 120, _WHITE)
-local _ORANGE = rgb(255, 165, 0, (type(YELLOW) == "number") and YELLOW or _WHITE)
-local _RED    = (type(RED)    == "number") and RED   or rgb(255, 70, 70, _WHITE)
+local _WHITE  = (type(WHITE)  == "number") and WHITE  or 0xFFFF
+local _GREEN  = (type(GREEN)  == "number") and GREEN  or _WHITE
+local _YELLOW = (type(YELLOW) == "number") and YELLOW or _WHITE
+local _RED    = (type(RED)    == "number") and RED    or _WHITE
 
 -- ─── Icon handles ─────────────────────────────────────────────────────────────
 -- Loaded once at module startup; nil when asset is unavailable or Bitmap absent.
@@ -54,8 +47,7 @@ end
 
 local function stateColor(s)
   if s == "OK"       then return _GREEN  end
-  if s == "WARNING"  then return _ORANGE end
-  if s == "LOW"      then return _ORANGE end
+  if s == "WARNING"  then return _YELLOW end
   if s == "CRITICAL" then return _RED    end
   return _WHITE
 end
@@ -63,9 +55,6 @@ end
 -- Combine a size flag with a colour flag safely.
 local function tf(size, color)
   if type(color) == "number" then
-    if bit32 and bit32.bor then
-      return bit32.bor(size, color)
-    end
     return size + color
   end
   return size
@@ -136,12 +125,9 @@ local function drawBattery(slot, telemetry, state)
 
   local textX = slot.x + iconAreaW + padX
 
-  -- Per-cell voltage is the primary readout for state-awareness.
-  local cellVoltage = (cells > 0) and (voltage / cells) or 0
-
-  -- Primary value: per-cell voltage in MIDSIZE with state colour.
+  -- Primary value: total voltage in MIDSIZE with state colour.
   -- MIDSIZE glyphs are ~16 px tall.
-  local voltStr = string.format("%.2fV", cellVoltage)
+  local voltStr = string.format("%.1fV", voltage)
   lcd.drawText(textX, slot.y + padY, voltStr, tf(MIDSIZE, color))
 
   -- Secondary value: cell config ("4S") in small text below voltage.
