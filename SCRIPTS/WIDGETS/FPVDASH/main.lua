@@ -106,7 +106,9 @@ local function refresh(widget, event, touchState)
 
   lcd.drawRectangle(widget.zone.x, widget.zone.y, widget.zone.w, widget.zone.h)
 
-  if topbarRenderer and topbarRenderer.drawSkeleton then
+  if topbarRenderer and topbarRenderer.draw then
+    topbarRenderer.draw(widget.layout.topBar, widget.telemetry, widget.state)
+  elseif topbarRenderer and topbarRenderer.drawSkeleton then
     topbarRenderer.drawSkeleton(widget.layout.topBar, widget.telemetry, widget.state)
   end
 
