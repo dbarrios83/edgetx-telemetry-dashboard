@@ -48,7 +48,7 @@ Guidelines:
 - avoid animations
 
 ## 7. Target Hardware
-Hardware targets are defined in [docs/hardware-targets.md](hardware-targets.md).
+Hardware targets are defined in [docs/platform/hardware-targets.md](../platform/hardware-targets.md).
 
 Design should support:
 - Base layout compatibility with 480 x 272

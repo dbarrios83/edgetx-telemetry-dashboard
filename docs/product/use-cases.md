@@ -127,4 +127,4 @@ Core implications:
 This use-case definition applies across supported EdgeTX color display classes.
 
 For display classes, screen resolutions, known radio models, and layout strategy, see:
-- [docs/hardware-targets.md](hardware-targets.md)
+- [docs/platform/hardware-targets.md](../platform/hardware-targets.md)

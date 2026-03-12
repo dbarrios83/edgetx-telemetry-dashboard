@@ -16,7 +16,7 @@ Compatible display class:
 
 The layout system must keep the same card order and visual hierarchy across both classes.
 
-For supported radios and display classes, see [docs/hardware-targets.md](hardware-targets.md).
+For supported radios and display classes, see [docs/platform/hardware-targets.md](../platform/hardware-targets.md).
 
 ## 3. Layout Goals
 The telemetry card layout system must ensure:
@@ -193,6 +193,6 @@ The layout system should support future growth without forcing a redesign of the
 Guidance:
 - keep the two-row primary grid stable
 - add new telemetry through reserved extension or optional slots
-- preserve the visual hierarchy defined in [docs/telemetry-priority.md](telemetry-priority.md)
+- preserve the visual hierarchy defined in [docs/product/telemetry-priority.md](../product/telemetry-priority.md)
 - keep card definitions aligned with [docs/telemetry-cards.md](telemetry-cards.md)
-- keep layout scaling consistent with [docs/hardware-targets.md](hardware-targets.md)
+- keep layout scaling consistent with [docs/platform/hardware-targets.md](../platform/hardware-targets.md)

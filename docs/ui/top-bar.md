@@ -168,7 +168,7 @@ Guidance:
 - preserve a single consistent order for all top-bar elements
 - prioritize readability over decorative styling
 - keep the telemetry indicator lightweight and unambiguous
-- align top-bar behavior with the always-visible radio-side information defined in [docs/use-cases.md](use-cases.md)
+- align top-bar behavior with the always-visible radio-side information defined in [docs/product/use-cases.md](../product/use-cases.md)
 - keep placement compatible with the stick monitor and card layout defined in [docs/stick-monitor.md](stick-monitor.md) and [docs/telemetry-layout.md](telemetry-layout.md)
 
 ## 11. Acceptance Mapping
