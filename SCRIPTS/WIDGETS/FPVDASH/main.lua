@@ -1,8 +1,8 @@
 local WIDGET_ROOTS = {
-  "/WIDGETS/FPVDASH/",
   "/SCRIPTS/WIDGETS/FPVDASH/",
-  "WIDGETS/FPVDASH/",
+  "/WIDGETS/FPVDASH/",
   "SCRIPTS/WIDGETS/FPVDASH/",
+  "WIDGETS/FPVDASH/",
   "",
 }
 
@@ -29,6 +29,31 @@ local telemetryState  = loadModule("telemetry/state.lua")
 local topbarRenderer = loadModule("render/topbar.lua")
 local sticksRenderer = loadModule("render/sticks.lua")
 local cardsRenderer  = loadModule("render/cards.lua")
+
+local _WHITE  = (type(WHITE)  == "number") and WHITE  or 0xFFFF
+
+local function themeColor(themeToken, fallback)
+  if lcd and type(lcd.getThemeColor) == "function" and type(themeToken) == "number" then
+    local ok, c = pcall(lcd.getThemeColor, themeToken)
+    if ok and type(c) == "number" then
+      return c
+    end
+  end
+  return fallback
+end
+
+local _THEME_BG = themeColor((type(THEME_BG) == "number") and THEME_BG or nil, _WHITE)
+
+local function drawSectionWash(rect)
+  if not rect or not lcd.drawFilledRectangle then
+    return
+  end
+
+  if type(CUSTOM_COLOR) == "number" and lcd.setColor then
+    lcd.setColor(CUSTOM_COLOR, _THEME_BG)
+    pcall(lcd.drawFilledRectangle, rect.x, rect.y, rect.w, rect.h, CUSTOM_COLOR,10)
+  end
+end
 
 local function zoneChanged(widget)
   local z = widget.zone
@@ -104,52 +129,25 @@ local function refresh(widget, event, touchState)
     return
   end
 
-  lcd.drawRectangle(widget.zone.x, widget.zone.y, widget.zone.w, widget.zone.h)
-
   if topbarRenderer and topbarRenderer.draw then
+    drawSectionWash(widget.layout.topBar)
     topbarRenderer.draw(widget.layout.topBar, widget.telemetry, widget.state)
   elseif topbarRenderer and topbarRenderer.drawSkeleton then
     topbarRenderer.drawSkeleton(widget.layout.topBar, widget.telemetry, widget.state)
   end
 
-  if sticksRenderer and sticksRenderer.drawSkeleton then
+  if sticksRenderer and sticksRenderer.draw then
+    drawSectionWash(widget.layout.stickMonitor)
+    sticksRenderer.draw(widget.layout.stickMonitor, widget.telemetry, widget.state)
+  elseif sticksRenderer and sticksRenderer.drawSkeleton then
     sticksRenderer.drawSkeleton(widget.layout.stickMonitor, widget.telemetry, widget.state)
   end
 
   if cardsRenderer and cardsRenderer.draw then
+    drawSectionWash(widget.layout.primaryGrid)
+    drawSectionWash(widget.layout.contextRow)
+    drawSectionWash(widget.layout.diagnostics)
     cardsRenderer.draw(widget.layout, widget.slots, widget.telemetry, widget.state)
-  end
-
-  local debugY = widget.zone.y + widget.zone.h - 10
-  local debugX = widget.zone.x + 2
-
-  if widget.telemetry and widget.telemetry.connected then
-    local line = string.format(
-      "LQ:%d RSSI:%d BAT:%.1fV SAT:%d TXP:%dmW",
-      widget.telemetry.linkQuality or 0,
-      widget.telemetry.rssi or 0,
-      widget.telemetry.battery or 0,
-      widget.telemetry.satellites or 0,
-      widget.telemetry.txPower or 0
-    )
-    lcd.drawText(debugX, debugY, line, SMLSIZE)
-  else
-    -- Show which sensor names the radio actually exposes to help diagnose
-    -- sensor-name mismatches between receivers / firmware versions.
-    local scanLine = "NO RX TELEMETRY"
-
-    if telemetryRead and telemetryRead.scanSensors then
-      local found = telemetryRead.scanSensors()
-      if #found > 0 then
-        local parts = {}
-        for i = 1, math.min(#found, 5) do
-          parts[i] = found[i]
-        end
-        scanLine = table.concat(parts, " ")
-      end
-    end
-
-    lcd.drawText(debugX, debugY, scanLine, SMLSIZE)
   end
 end
 

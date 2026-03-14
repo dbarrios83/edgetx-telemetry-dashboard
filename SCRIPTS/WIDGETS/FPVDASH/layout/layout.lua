@@ -40,11 +40,11 @@ function M.compute(zone)
     return nil
   end
 
-  local gap = 4
+  local gap = 2
 
-  local topBarH = math.max(22, math.floor(h * 0.12))
-  local stickH = math.max(58, math.floor(h * 0.30))
-  local contextH = math.max(20, math.floor(h * 0.11))
+  local topBarH = math.max(36, math.floor(h * 0.14))
+  local stickH = math.max(58, math.floor(h * 0.32))
+  local contextH = math.max(20, math.floor(h * 0.14))
   local diagnosticsH = math.max(20, math.floor(h * 0.14))
 
   local minimumPrimaryH = 40

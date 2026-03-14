@@ -1,6 +1,5 @@
 -- Card renderer.
--- M.draw renders live telemetry cards; P1 (battery) is fully implemented.
--- Remaining slots continue to render as skeleton until their cards are added.
+-- M.draw renders live telemetry cards as a HUD overlay without section frames.
 -- M.drawSkeleton renders pure wireframe for all slots (debugging / layout pass).
 
 local M = {}
@@ -10,8 +9,22 @@ local M = {}
 local _WHITE  = (type(WHITE)  == "number") and WHITE  or 0xFFFF
 local _GREEN  = (type(GREEN)  == "number") and GREEN  or _WHITE
 local _YELLOW = (type(YELLOW) == "number") and YELLOW or _WHITE
-local _RED    = (type(RED)    == "number") and RED    or _WHITE
-local _DBLSIZE = (type(DBLSIZE) == "number") and DBLSIZE or MIDSIZE
+local _BLACK  = 0x0000
+
+local function themeColor(themeToken, fallback)
+  if lcd and type(lcd.getThemeColor) == "function" and type(themeToken) == "number" then
+    local ok, c = pcall(lcd.getThemeColor, themeToken)
+    if ok and type(c) == "number" then
+      return c
+    end
+  end
+  return fallback
+end
+
+local _THEME_PRIMARY = themeColor((type(THEME_PRIMARY) == "number") and THEME_PRIMARY or nil, _WHITE)
+local _THEME_SECONDARY = themeColor((type(THEME_SECONDARY) == "number") and THEME_SECONDARY or nil, _WHITE)
+local _THEME_FOCUS = themeColor((type(THEME_FOCUS) == "number") and THEME_FOCUS or nil, _GREEN)
+local _THEME_WARNING = themeColor((type(THEME_WARNING) == "number") and THEME_WARNING or nil, _YELLOW)
 
 -- ─── Icon handles ─────────────────────────────────────────────────────────────
 -- Loaded once at module startup; nil when asset is unavailable or Bitmap absent.
@@ -104,26 +117,48 @@ local PRIMARY_ORDER  = { "P1", "P2", "P3", "P4", "P5", "P6" }
 local CONTEXT_ORDER  = { "C1", "C2" }
 local OPTIONAL_ORDER = { "O1", "O2", "O3", "O4" }
 
--- ─── Helpers ──────────────────────────────────────────────────────────────────
-local function clamp(v, lo, hi)
-  if v < lo then return lo end
-  if v > hi then return hi end
-  return v
-end
-
 local function stateColor(s)
-  if s == "OK"       then return _GREEN  end
-  if s == "WARNING"  then return _YELLOW end
-  if s == "CRITICAL" then return _RED    end
-  return _WHITE
+  if s == "OK" then
+    return _THEME_FOCUS
+  elseif s == "WARNING" then
+    return _THEME_WARNING
+  elseif s == "CRITICAL" then
+    if type(RED) == "number" then
+      return RED
+    end
+    return _THEME_WARNING
+  elseif s == "DISCONNECTED" then
+    return _THEME_SECONDARY
+  end
+
+  return _THEME_SECONDARY
 end
 
--- Combine a size flag with a colour flag safely.
-local function tf(size, color)
-  if type(color) == "number" then
-    return size + color
+local function setCustomColor(color)
+  if lcd and type(lcd.setColor) == "function" and type(CUSTOM_COLOR) == "number" and type(color) == "number" then
+    lcd.setColor(CUSTOM_COLOR, color)
   end
-  return size
+end
+
+-- EdgeTX shadow effect: draw text offset by 1px, then draw the main text.
+local function drawShadowText(x, y, text, size, color)
+  if not lcd or not lcd.drawText then
+    return
+  end
+
+  local hasCustomColor = type(CUSTOM_COLOR) == "number"
+
+  if hasCustomColor and lcd.setColor then
+    lcd.setColor(CUSTOM_COLOR, _BLACK)
+    lcd.drawText(x + 1, y + 1, text, size + CUSTOM_COLOR)
+
+    lcd.setColor(CUSTOM_COLOR, color)
+    lcd.drawText(x, y, text, size + CUSTOM_COLOR)
+    return
+  end
+
+  lcd.drawText(x + 1, y + 1, text, size)
+  lcd.drawText(x, y, text, size)
 end
 
 local function drawCenteredLabel(rect, label)
@@ -145,7 +180,14 @@ end
 
 local function drawBox(rect, label)
   if not rect then return end
-  lcd.drawRectangle(rect.x, rect.y, rect.w, rect.h)
+  local x1 = rect.x
+  local y1 = rect.y
+  local x2 = rect.x + rect.w - 1
+  local y2 = rect.y + rect.h - 1
+  lcd.drawLine(x1, y1, x2, y1, SOLID, FORCE)
+  lcd.drawLine(x1, y2, x2, y2, SOLID, FORCE)
+  lcd.drawLine(x1, y1, x1, y2, SOLID, FORCE)
+  lcd.drawLine(x2, y1, x2, y2, SOLID, FORCE)
   if label then drawCenteredLabel(rect, label) end
 end
 
@@ -160,23 +202,13 @@ end
 
 -- Draw one telemetry card with centralized styling and layout behavior.
 -- Example:
--- drawCard(rect, { icon = icons.signal, value = telemetry.rssi, unit = "dBm", state = state.rssi })
+-- drawCard(rect, { icon = icons.signal, value = telemetry.rssi, unit = "dBm" })
 local function drawCard(rect, spec)
   if not rect or not spec then
     return
   end
 
-  lcd.drawRectangle(rect.x, rect.y, rect.w, rect.h)
-
-  local padX = spec.padX or 2
-  local padY = spec.padY or 2
-  local textTop = rect.y + padY
   local value = spec.value
-  local stateClr = stateColor(spec.state)
-
-  if spec.showStateAccent and lcd.drawFilledRectangle then
-    lcd.drawFilledRectangle(rect.x + 1, rect.y + 1, rect.w - 2, 2, stateClr)
-  end
 
   local isAvailable = true
   if spec.isAvailable then
@@ -186,21 +218,26 @@ local function drawCard(rect, spec)
   end
 
   if not isAvailable then
-    drawCenteredLabel(rect, spec.placeholder or "---")
+    local placeholder = spec.placeholder or "---"
+    local px = rect.x + 34
+    local py = rect.y + math.floor(((rect.h - 8) / 2) + 0.5)
+    drawShadowText(px, py, placeholder, SMLSIZE, _THEME_SECONDARY)
     return
   end
 
-  local iconAreaW = 0
+  local iconX = rect.x + 4
+  local iconY = rect.y + math.floor(((rect.h - 24) / 2) + 0.5)
+  local color = stateColor(spec.state)
+
   if spec.icon then
-    local iconH = clamp(rect.h - padY * 2, 8, 32)
-    local scale = math.max(1, math.floor(iconH / 32 * 100))
-    lcd.drawBitmap(spec.icon, rect.x + padX, rect.y + padY, scale)
-    iconAreaW = iconH + padX + 2
+    -- Keep telemetry icons at native 24px style; no scaling.
+    setCustomColor(color)
+    lcd.drawBitmap(spec.icon, iconX, iconY)
   end
 
-  local textX = rect.x + iconAreaW + padX
+  local textX = rect.x + 36
+  local textY = rect.y + math.floor(((rect.h - 12) / 2) + 0.5)
 
-  local valueColor = spec.valueColor or stateClr
   local valueText
   if spec.formatValue then
     valueText = spec.formatValue(value)
@@ -208,38 +245,14 @@ local function drawCard(rect, spec)
     valueText = tostring(value)
   end
 
-  lcd.drawText(textX, textTop, valueText, tf(spec.valueFlags or MIDSIZE, valueColor))
-
-  local subText = spec.secondaryText
-  if not subText and spec.unit then
-    subText = spec.unit
+  if spec.unit and spec.unit ~= "" then
+    valueText = tostring(valueText) .. tostring(spec.unit)
   end
 
-  if subText then
-    local subY = textTop + (spec.unitOffset or 16)
-    if subY + 8 <= rect.y + rect.h then
-      lcd.drawText(textX, subY, subText, spec.secondaryFlags or SMLSIZE)
-    end
-  end
+  local valueFlags = spec.valueFlags or MIDSIZE
+  drawShadowText(textX, textY, valueText, valueFlags, color)
 
-  if type(spec.progressPercent) == "number" then
-    local p = clamp(spec.progressPercent, 0, 1)
-    local barH = 4
-    local barX = textX
-    local barY = rect.y + rect.h - barH - 2
-    local barW = rect.x + rect.w - barX - 2
-
-    if barW > 8 and barY > textTop then
-      lcd.drawRectangle(barX, barY, barW, barH)
-
-      if lcd.drawFilledRectangle then
-        local fillW = math.floor((barW - 2) * p + 0.5)
-        if fillW > 0 then
-          lcd.drawFilledRectangle(barX + 1, barY + 1, fillW, barH - 2, stateClr)
-        end
-      end
-    end
-  end
+  -- HUD baseline: no stacked metadata; spacing provides structure.
 end
 
 local function availablePositive(v)
@@ -300,14 +313,6 @@ local function formatFlightModeValue(v)
   return tostring(v)
 end
 
-local function formatDiagRSSIValue(v)
-  return string.format("%sdBm", formatRSSIValue(v))
-end
-
-local function formatCapacityValue(v)
-  return string.format("%dmAh", math.floor(v + 0.5))
-end
-
 local function formatAntennaValue(v)
   local raw = math.floor(v + 0.5)
 
@@ -321,13 +326,7 @@ local BATTERY_CARD_SPEC = {
   value = 0,
   isAvailable = availablePositive,
   formatValue = formatBatteryValue,
-  valueFlags = _DBLSIZE,
-  valueColor = _WHITE,
-  secondaryFlags = SMLSIZE,
-  secondaryText = nil,
-  unitOffset = 16,
-  showStateAccent = true,
-  progressPercent = nil,
+  valueFlags = SMLSIZE,
   placeholder = "---",
 }
 
@@ -338,9 +337,7 @@ local RSSI_CARD_SPEC = {
   isAvailable = availableNonZero,
   formatValue = formatRSSIValue,
   unit = "dBm",
-  valueFlags = MIDSIZE,
-  secondaryFlags = SMLSIZE,
-  unitOffset = 16,
+  valueFlags = SMLSIZE,
   placeholder = "---",
 }
 
@@ -351,9 +348,7 @@ local RATE_CARD_SPEC = {
   isAvailable = availablePositive,
   formatValue = formatRateValue,
   unit = "Hz",
-  valueFlags = MIDSIZE,
-  secondaryFlags = SMLSIZE,
-  unitOffset = 16,
+  valueFlags = SMLSIZE,
   placeholder = "---",
 }
 
@@ -364,9 +359,7 @@ local LQ_CARD_SPEC = {
   isAvailable = availableNotDisconnected,
   formatValue = formatPercentValue,
   unit = "%",
-  valueFlags = MIDSIZE,
-  secondaryFlags = SMLSIZE,
-  unitOffset = 16,
+  valueFlags = SMLSIZE,
   placeholder = "---",
 }
 
@@ -377,9 +370,7 @@ local CURRENT_CARD_SPEC = {
   isAvailable = availableNotDisconnected,
   formatValue = formatCurrentValue,
   unit = "A",
-  valueFlags = MIDSIZE,
-  secondaryFlags = SMLSIZE,
-  unitOffset = 16,
+  valueFlags = SMLSIZE,
   placeholder = "---",
 }
 
@@ -389,10 +380,8 @@ local SAT_CARD_SPEC = {
   value = 0,
   isAvailable = availableNotDisconnected,
   formatValue = formatSatValue,
-  secondaryText = "SAT",
-  valueFlags = MIDSIZE,
-  secondaryFlags = SMLSIZE,
-  unitOffset = 16,
+  unit = "SAT",
+  valueFlags = SMLSIZE,
   placeholder = "---",
 }
 
@@ -403,9 +392,7 @@ local TX_POWER_CARD_SPEC = {
   isAvailable = availablePositive,
   formatValue = formatTxPowerValue,
   unit = "mW",
-  valueFlags = MIDSIZE,
-  secondaryFlags = SMLSIZE,
-  unitOffset = 16,
+  valueFlags = SMLSIZE,
   placeholder = "---",
 }
 
@@ -416,8 +403,6 @@ local FLIGHT_MODE_CARD_SPEC = {
   isAvailable = availableText,
   formatValue = formatFlightModeValue,
   valueFlags = SMLSIZE,
-  secondaryFlags = SMLSIZE,
-  unitOffset = 16,
   placeholder = "---",
 }
 
@@ -426,7 +411,8 @@ local DIAG_RSSI1_CARD_SPEC = {
   state = nil,
   value = 0,
   isAvailable = availableNonZero,
-  formatValue = formatDiagRSSIValue,
+  formatValue = formatRSSIValue,
+  unit = "dBm",
   valueFlags = SMLSIZE,
   placeholder = "",
 }
@@ -436,7 +422,8 @@ local DIAG_RSSI2_CARD_SPEC = {
   state = nil,
   value = 0,
   isAvailable = availableNonZero,
-  formatValue = formatDiagRSSIValue,
+  formatValue = formatRSSIValue,
+  unit = "dBm",
   valueFlags = SMLSIZE,
   placeholder = "",
 }
@@ -446,7 +433,8 @@ local DIAG_CAPACITY_CARD_SPEC = {
   state = nil,
   value = 0,
   isAvailable = availablePositive,
-  formatValue = formatCapacityValue,
+  formatValue = formatSatValue,
+  unit = "mAh",
   valueFlags = SMLSIZE,
   placeholder = "",
 }
@@ -482,10 +470,6 @@ local function drawBattery(slot, telemetry, state)
   BATTERY_CARD_SPEC.icon = icons.battery
   BATTERY_CARD_SPEC.value = cellVoltage
   BATTERY_CARD_SPEC.state = (state and state.battery) or "UNKNOWN"
-  BATTERY_CARD_SPEC.secondaryText = cells .. "S"
-
-  -- Approximate battery fill from per-cell voltage for visual scanning.
-  BATTERY_CARD_SPEC.progressPercent = clamp((cellVoltage - 3.3) / 0.9, 0, 1)
 
   drawCard(slot, BATTERY_CARD_SPEC)
 end
@@ -632,18 +616,9 @@ M.icons = icons
 M.drawCard = drawCard
 
 -- Live card rendering pipeline.
--- P1 shows the battery card; all remaining slots render skeleton until
--- their respective widgets are implemented.
+-- Renders active telemetry sections without per-section frames.
 function M.draw(layout, slots, telemetry, state)
   if not layout or not slots then return end
-
-  -- Region outlines.
-  lcd.drawRectangle(layout.primaryGrid.x,  layout.primaryGrid.y,
-                    layout.primaryGrid.w,  layout.primaryGrid.h)
-  lcd.drawRectangle(layout.contextRow.x,  layout.contextRow.y,
-                    layout.contextRow.w,  layout.contextRow.h)
-  lcd.drawRectangle(layout.diagnostics.x, layout.diagnostics.y,
-                    layout.diagnostics.w, layout.diagnostics.h)
 
   -- P1: battery card (fully implemented by issue #38).
   drawBattery(slots.primary and slots.primary.P1, telemetry, state)
@@ -663,15 +638,6 @@ function M.draw(layout, slots, telemetry, state)
   -- P6: satellites card (implemented by issue #56).
   drawSatellites(slots.primary and slots.primary.P6, telemetry, state)
 
-  -- Remaining primary slots: skeleton placeholder until their cards are added.
-  for i = 2, #PRIMARY_ORDER do
-    local id   = PRIMARY_ORDER[i]
-    local slot = slots.primary and slots.primary[id]
-    if slot and id ~= "P2" and id ~= "P3" and id ~= "P4" and id ~= "P5" and id ~= "P6" then
-      drawBox(slot, id)
-    end
-  end
-
   -- C1/C2: context row cards (implemented by issue #57).
   drawTxPower(slots.context and slots.context.C1, telemetry, state)
   drawFlightMode(slots.context and slots.context.C2, telemetry)
@@ -687,9 +653,9 @@ end
 function M.drawSkeleton(layout, slots)
   if not layout or not slots then return end
 
-  drawBox(layout.primaryGrid)
-  drawBox(layout.contextRow, "Context Row")
-  drawBox(layout.diagnostics, "Diagnostics")
+  drawLabelAbove(layout.primaryGrid, "Primary")
+  drawLabelAbove(layout.contextRow, "Context")
+  drawLabelAbove(layout.diagnostics, "Diag")
 
   drawSlots(slots.primary,  PRIMARY_ORDER)
   drawSlots(slots.context,  CONTEXT_ORDER)
