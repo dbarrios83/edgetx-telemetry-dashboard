@@ -615,11 +615,7 @@ end
 M.icons = icons
 M.drawCard = drawCard
 
--- Live card rendering pipeline.
--- Renders active telemetry sections without per-section frames.
-function M.draw(layout, slots, telemetry, state)
-  if not layout or not slots then return end
-
+local function drawPrimaryCards(slots, telemetry, state)
   -- P1: battery card (fully implemented by issue #38).
   drawBattery(slots.primary and slots.primary.P1, telemetry, state)
 
@@ -637,6 +633,14 @@ function M.draw(layout, slots, telemetry, state)
 
   -- P6: satellites card (implemented by issue #56).
   drawSatellites(slots.primary and slots.primary.P6, telemetry, state)
+end
+
+-- Live card rendering pipeline.
+-- Renders active telemetry sections without per-section frames.
+function M.draw(layout, slots, telemetry, state)
+  if not layout or not slots then return end
+
+  drawPrimaryCards(slots, telemetry, state)
 
   -- C1/C2: context row cards (implemented by issue #57).
   drawTxPower(slots.context and slots.context.C1, telemetry, state)
@@ -647,6 +651,11 @@ function M.draw(layout, slots, telemetry, state)
   drawDiagRSSI2(slots.optional and slots.optional.O2, telemetry)
   drawDiagCapacity(slots.optional and slots.optional.O3, telemetry)
   drawDiagAntenna(slots.optional and slots.optional.O4, telemetry)
+end
+
+function M.drawPrimary(layout, slots, telemetry, state)
+  if not layout or not slots then return end
+  drawPrimaryCards(slots, telemetry, state)
 end
 
 -- Pure wireframe for layout verification / development.

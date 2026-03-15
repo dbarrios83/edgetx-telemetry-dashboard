@@ -29,6 +29,9 @@ local telemetryState  = loadModule("telemetry/state.lua")
 local topbarRenderer = loadModule("render/topbar.lua")
 local sticksRenderer = loadModule("render/sticks.lua")
 local cardsRenderer  = loadModule("render/cards.lua")
+local contextRenderer = loadModule("render/context.lua")
+local timersRenderer  = loadModule("render/timers.lua")
+local footerRenderer  = loadModule("render/footer.lua")
 
 local _WHITE  = (type(WHITE)  == "number") and WHITE  or 0xFFFF
 
@@ -143,10 +146,27 @@ local function refresh(widget, event, touchState)
     sticksRenderer.drawSkeleton(widget.layout.stickMonitor, widget.telemetry, widget.state)
   end
 
-  if cardsRenderer and cardsRenderer.draw then
+  if contextRenderer and contextRenderer.draw and widget.layout.primaryGrid then
+    -- Context telemetry grid replaces the legacy primary card zone.
+    drawSectionWash(widget.layout.primaryGrid)
+    contextRenderer.draw(widget.layout.primaryGrid, widget.telemetry, widget.state)
+
+    -- Timer row.
+    drawSectionWash(widget.layout.contextRow)
+    if timersRenderer and timersRenderer.draw then
+      timersRenderer.draw(widget.layout.contextRow, widget.telemetry, widget.state)
+    end
+
+    -- Footer row: only present on 480×320 class radios.
+    if widget.layout.footerRow then
+      drawSectionWash(widget.layout.footerRow)
+      if footerRenderer and footerRenderer.draw then
+        footerRenderer.draw(widget.layout.footerRow, widget.telemetry, widget.state)
+      end
+    end
+  elseif cardsRenderer and cardsRenderer.draw then
     drawSectionWash(widget.layout.primaryGrid)
     drawSectionWash(widget.layout.contextRow)
-    drawSectionWash(widget.layout.diagnostics)
     cardsRenderer.draw(widget.layout, widget.slots, widget.telemetry, widget.state)
   end
 end

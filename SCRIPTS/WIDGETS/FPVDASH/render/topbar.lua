@@ -14,6 +14,7 @@ local LINK_ICON_W = 24
 local LINK_ICON_H = 24
 local TX_TEXT_H = 12
 local TX_TEXT_NUDGE_Y = -8
+local TOPBAR_STATUS_X_OFFSET = 50
 
 local function themeColor(themeToken, fallback)
   if lcd and type(lcd.getThemeColor) == "function" and type(themeToken) == "number" then
@@ -465,10 +466,10 @@ function M.draw(bounds, telemetry)
   lcd.drawText(zone1.x + 4, modelY, modelText, tf(MIDSIZE, _THEME_PRIMARY) + _BOLD + _SHADOWED)
 
   local txV, txState = readTxBatteryInfo()
-  drawTxBattery({ x = zone2.x + 2, y = y, h = h }, txV, txState)
+  drawTxBattery({ x = zone2.x + 2 + TOPBAR_STATUS_X_OFFSET, y = y, h = h }, txV, txState)
 
   local connected = telemetry and telemetry.connected
-  drawLinkIcon({ x = zone3.x, y = y, w = zone3.w, h = h }, connected)
+  drawLinkIcon({ x = zone3.x + TOPBAR_STATUS_X_OFFSET, y = y, w = zone3.w, h = h }, connected)
 
   local timeY = y + 4
   local dateY = timeY + 13

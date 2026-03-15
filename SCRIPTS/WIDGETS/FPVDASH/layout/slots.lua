@@ -89,11 +89,18 @@ function M.compute(layout)
   slots.context.C1 = withSlot("C1", "txPower", contextCols[1])
   slots.context.C2 = withSlot("C2", "flightMode", contextCols[2])
 
-  local optionalCols = splitColumns(layout.diagnostics, 4, gap)
-  slots.optional.O1 = withSlot("O1", "rssi1", optionalCols[1])
-  slots.optional.O2 = withSlot("O2", "rssi2", optionalCols[2])
-  slots.optional.O3 = withSlot("O3", "capacity", optionalCols[3])
-  slots.optional.O4 = withSlot("O4", "activeAntenna", optionalCols[4])
+  if layout.diagnostics then
+    local optionalCols = splitColumns(layout.diagnostics, 4, gap)
+    slots.optional.O1 = withSlot("O1", "rssi1", optionalCols[1])
+    slots.optional.O2 = withSlot("O2", "rssi2", optionalCols[2])
+    slots.optional.O3 = withSlot("O3", "capacity", optionalCols[3])
+    slots.optional.O4 = withSlot("O4", "activeAntenna", optionalCols[4])
+
+    slots.byId.O1 = slots.optional.O1
+    slots.byId.O2 = slots.optional.O2
+    slots.byId.O3 = slots.optional.O3
+    slots.byId.O4 = slots.optional.O4
+  end
 
   slots.byId.P1 = slots.primary.P1
   slots.byId.P2 = slots.primary.P2
@@ -103,10 +110,6 @@ function M.compute(layout)
   slots.byId.P6 = slots.primary.P6
   slots.byId.C1 = slots.context.C1
   slots.byId.C2 = slots.context.C2
-  slots.byId.O1 = slots.optional.O1
-  slots.byId.O2 = slots.optional.O2
-  slots.byId.O3 = slots.optional.O3
-  slots.byId.O4 = slots.optional.O4
 
   return slots
 end
