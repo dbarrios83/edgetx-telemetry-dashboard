@@ -21,6 +21,7 @@ local layoutModule    = loadModule("layout/layout.lua")
 local slotsModule     = loadModule("layout/slots.lua")
 local telemetryRead   = loadModule("telemetry/read.lua")
 local telemetryState  = loadModule("telemetry/state.lua")
+local elrsModule      = loadModule("telemetry/elrs.lua")
 
 local topbarRenderer  = loadModule("render/topbar.lua")
 local sticksRenderer  = loadModule("render/sticks.lua")
@@ -198,6 +199,7 @@ local function create(zone, options)
     slots = nil,
     cachedZone = nil,
     theme = theme,
+    elrsState = elrsModule and elrsModule.init() or nil,
   }
 end
 
@@ -228,10 +230,20 @@ end
 
 local function refresh(widget, event, touchState)
 
+  -- Advance ELRS version polling (CRSF device-info request/response).
+  if elrsModule and widget.elrsState then
+    elrsModule.update(widget.elrsState)
+  end
+
   if telemetryRead and telemetryRead.snapshot then
     widget.telemetry = telemetryRead.snapshot()
   else
     widget.telemetry = nil
+  end
+
+  -- Attach resolved ELRS version so footer renderer can display it.
+  if widget.telemetry and elrsModule then
+    widget.telemetry.elrsVersion = elrsModule.getString(widget.elrsState)
   end
 
   if telemetryState and telemetryState.evaluate then

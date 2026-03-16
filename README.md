@@ -12,7 +12,13 @@ This guide explains how to install and configure the `FPVDASH` widget from this 
 1. EdgeTX firmware installed on your radio.
 2. A valid EdgeTX SD card contents pack for your firmware version.
 3. A model with telemetry sensors discovered (recommended before final widget setup).
-4. Supported target radios include colour-screen EdgeTX radios (for example RadioMaster TX15).
+4. Supported target radios:
+
+   **Primary target — 480 × 320 px:**
+   RadioMaster TX15, TX15 Max · Jumper T15, T15 Pro
+
+   **Compatible — 480 × 272 px:**
+   RadioMaster TX16S, TX16S Mark II · Jumper T16, T18
 
 ## Installation Steps
 
@@ -69,7 +75,26 @@ If the screen is not in `App Mode`, the widget may not load or may not render co
 - Stick monitor
 - Context telemetry grid (current, power, RF mode/packet rate, RSSI, satellites, antenna, flight mode)
 - Timers row
-- Footer with ELRS label and EdgeTX version
+- Footer with ELRS version and EdgeTX version
+
+## Displayed Metrics
+
+The dashboard can display these telemetry metrics and status values:
+- TX battery voltage
+- RX battery voltage / cell voltage
+- Link Quality (LQ)
+- Packet rate (decoded from RFMD when available)
+- RSSI 1
+- RSSI 2
+- Current draw (A)
+- TX power (mW)
+- Satellite count
+- Active antenna
+- Flight mode
+- Timer values (when enabled)
+- ELRS module version
+- EdgeTX firmware version
+- Stick positions (R/T/A/E axes)
 
 ## Troubleshooting
 
@@ -86,94 +111,6 @@ If the screen is not in `App Mode`, the widget may not load or may not render co
 
 1. Open SD card contents.
 2. Remove folder: `/WIDGETS/FPVDASH/`.
-
-## Project Structure
-
-```text
-edgetx-telemetry-dashboard/
-	.github/
-		copilot-instructions.md
-	LICENSE
-	README.md
-	SCRIPTS/
-		WIDGETS/
-			FPVDASH/
-				main.lua
-				layout/
-					layout.lua
-					slots.lua
-				render/
-					topbar.lua
-					sticks.lua
-					context.lua
-					timers.lua
-					footer.lua
-					cards.lua
-				telemetry/
-					read.lua
-					state.lua
-				icons/
-					antenna.png
-					battery.png
-					clock.png
-					current.png
-					drone.png
-					link.png
-					link_off.png
-					radio.png
-					rfmd.png
-					rfmd-b.png
-					sat.png
-					signal.png
-					battery/
-						battery-dead.png
-						battery-full.png
-						battery-low.png
-						battery-ok.png
-						battery-warn.png
-					link/
-						connection-dead.png
-						connection-low.png
-						connection-ok.png
-						connection-warn.png
-					dark/
-						*.png
-					light/
-						*.png
-	docs/
-		architecture/
-			architecture.md
-			lua-widget-architecture.md
-			rendering-pipeline.md
-			telemetry-module.md
-			ui-components-module.md
-		assets/
-			icons.md
-		implementation/
-			implementation-notes.md
-		platform/
-			edgetx-api-cheatsheet.md
-			hardware-targets.md
-		product/
-			design-principles.md
-			telemetry-inventory.md
-			telemetry-priority.md
-			use-cases.md
-			ux.md
-		ui/
-			dashboard-information-hierarchy.md
-			dashboard-wireframe.md
-			stick-monitor.md
-			telemetry-cards.md
-			telemetry-layout.md
-			telemetry-state.md
-			top-bar.md
-	design/
-		wireframes/
-		mockups/
-	tests/
-		examples/
-```
 
 ## Additional Resources
 

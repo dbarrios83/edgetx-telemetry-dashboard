@@ -83,11 +83,10 @@ function M.draw(rect, telemetry, state, theme)
 
   local textColor = (theme and theme.textColor) or _WHITE
 
-  -- ELRS version: prefer telemetry field, fallback to bare label.
-  local elrsText = "ELRS"
-  if telemetry and type(telemetry.elrsVersion) == "string" and #telemetry.elrsVersion > 0 then
-    elrsText = "ELRS " .. telemetry.elrsVersion
-  end
+  -- ELRS version: full string supplied by elrsModule (e.g. "ELRS 3.4.0").
+  local elrsText = (telemetry and type(telemetry.elrsVersion) == "string" and #telemetry.elrsVersion > 0)
+    and telemetry.elrsVersion
+    or  "ELRS"
 
   local edgeTxText = resolveEdgeTxVersion()
 
