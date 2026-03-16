@@ -15,6 +15,9 @@ local LINK_ICON_H = 24
 local TX_TEXT_H = 12
 local TX_TEXT_NUDGE_Y = -8
 local TOPBAR_STATUS_X_OFFSET = 50
+local _TEXT_COLOR = _WHITE
+local _TEXT_SHADOW_COLOR = _BLACK
+local _LIGHT_TEXT_SHADOW = _WHITE
 
 local function themeColor(themeToken, fallback)
   if lcd and type(lcd.getThemeColor) == "function" and type(themeToken) == "number" then
@@ -37,6 +40,44 @@ local function tf(size, color)
     return size + CUSTOM_COLOR
   end
   return size
+end
+
+local function drawShadowText(x, y, text, size, color, extraFlags)
+  if not lcd or type(lcd.drawText) ~= "function" then
+    return
+  end
+
+  local txtColor = (type(color) == "number") and color or _WHITE
+  local flags = (type(extraFlags) == "number") and extraFlags or 0
+  local shadowColor = (type(_TEXT_SHADOW_COLOR) == "number") and _TEXT_SHADOW_COLOR or _BLACK
+
+  if type(TEXT_COLOR) == "number" and type(lcd.setColor) == "function" then
+    lcd.setColor(TEXT_COLOR, shadowColor)
+    lcd.drawText(x + 1, y + 1, text, size + flags)
+
+    lcd.setColor(TEXT_COLOR, txtColor)
+    lcd.drawText(x, y, text, size + flags)
+    return
+  end
+
+  if type(CUSTOM_COLOR) == "number" and type(lcd.setColor) == "function" then
+    lcd.setColor(CUSTOM_COLOR, shadowColor)
+    lcd.drawText(x + 1, y + 1, text, size + CUSTOM_COLOR + flags)
+
+    lcd.setColor(CUSTOM_COLOR, txtColor)
+    lcd.drawText(x, y, text, size + CUSTOM_COLOR + flags)
+    return
+  end
+
+  local okShadow = pcall(lcd.drawText, x + 1, y + 1, text, size + flags, shadowColor)
+  if not okShadow then
+    lcd.drawText(x + 1, y + 1, text, size + flags)
+  end
+
+  local okText = pcall(lcd.drawText, x, y, text, size + flags, txtColor)
+  if not okText then
+    lcd.drawText(x, y, text, size + flags)
+  end
 end
 
 local ICON_LINK_ON = nil
@@ -70,19 +111,45 @@ end
 -- Icons are loaded lazily on the first draw call so that the Bitmap API is
 -- guaranteed to be available (EdgeTX only exposes it inside widget callbacks).
 local _iconsLoaded = false
+local _loadedIconFolder = nil
 
-local function ensureIconsLoaded()
-  if _iconsLoaded then return end
+local function ensureIconsLoaded(theme)
   if not Bitmap or type(Bitmap.open) ~= "function" then return end
+
+  local iconFolder = (theme and theme.iconFolder) or "dark"
 
   local roots = {
     "/WIDGETS/FPVDASH/icons/",
+    "/SCRIPTS/WIDGETS/FPVDASH/icons/",
     "WIDGETS/FPVDASH/icons/",
+    "SCRIPTS/WIDGETS/FPVDASH/icons/",
   }
+
+  local themedRoots = {
+    "/WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
+    "/SCRIPTS/WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
+    "WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
+    "SCRIPTS/WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
+    "/WIDGETS/FPVDASH/icons/",
+    "/SCRIPTS/WIDGETS/FPVDASH/icons/",
+    "WIDGETS/FPVDASH/icons/",
+    "SCRIPTS/WIDGETS/FPVDASH/icons/",
+  }
+
+  if _iconsLoaded then
+    if _loadedIconFolder ~= iconFolder then
+      _loadedIconFolder = iconFolder
+      ICON_LINK_ON = openBitmapFromCandidates(themedRoots, { "link.png" })
+      ICON_LINK_OFF = openBitmapFromCandidates(themedRoots, { "link_off.png" })
+    end
+    return
+  end
 
   local batteryRoots = {
     "/WIDGETS/FPVDASH/icons/battery/",
+    "/SCRIPTS/WIDGETS/FPVDASH/icons/battery/",
     "WIDGETS/FPVDASH/icons/battery/",
+    "SCRIPTS/WIDGETS/FPVDASH/icons/battery/",
   }
 
   ICON_TX_BATTERY = openBitmapFromCandidates(roots, {
@@ -100,11 +167,13 @@ local function ensureIconsLoaded()
     BATTERY_ICONS.ok = ICON_TX_BATTERY
   end
 
-  ICON_LINK_ON = openBitmapFromCandidates(roots, {
+  _loadedIconFolder = iconFolder
+
+  ICON_LINK_ON = openBitmapFromCandidates(themedRoots, {
     "link.png",
   })
 
-  ICON_LINK_OFF = openBitmapFromCandidates(roots, {
+  ICON_LINK_OFF = openBitmapFromCandidates(themedRoots, {
     "link_off.png",
   })
 
@@ -176,7 +245,7 @@ local function readTxVoltage()
 
   for i = 1, #names do
     local n = toNumber(getValue(names[i]))
-    if n and n > 0 then
+    if n and n >= 0 then
       return n
     end
   end
@@ -188,7 +257,7 @@ local function readTxBatteryInfo()
   if utils and type(utils.txBatteryInfo) == "function" then
     local v, state = utils.txBatteryInfo()
     local parsedV = toNumber(v)
-    if not parsedV then
+    if type(parsedV) ~= "number" or parsedV < 0 then
       parsedV = readTxVoltage()
     end
 
@@ -196,12 +265,20 @@ local function readTxBatteryInfo()
       state = nil
     end
 
+    if type(parsedV) == "number" and parsedV == 0 then
+      state = "dead"
+    end
+
     return parsedV, state
   end
 
   local v = readTxVoltage()
-  if not v then
+  if type(v) ~= "number" or v < 0 then
     return nil, "low"
+  end
+
+  if v == 0 then
+    return v, "dead"
   end
 
   if v >= 7.9 then
@@ -261,7 +338,7 @@ local function drawLinkIcon(rect, connected)
   local isConnected = (connected == true)
   local icon = isConnected and ICON_LINK_ON or ICON_LINK_OFF
   local text = isConnected and "LINK" or "NO"
-  local textColor = _THEME_WARNING
+  local textColor = _TEXT_COLOR
   local iconX = rect.x
   local iconY = rect.y
 
@@ -296,7 +373,7 @@ local function drawLinkIcon(rect, connected)
   if type(rect.h) == "number" then
     textY = rect.y + math.floor((rect.h - 8) / 2)
   end
-  lcd.drawText(textX, textY, text, tf(SMLSIZE, textColor))
+  drawShadowText(textX, textY, text, SMLSIZE, textColor)
 end
 
 local function resolveTxBatteryIcon(state)
@@ -370,7 +447,7 @@ end
 
 local function drawTxBattery(rect, txV, txState)
   local txText = txV and string.format("%.1fV", txV) or "--.-V"
-  local txColor = txV and _THEME_PRIMARY or _THEME_WARNING
+  local txColor = txV and _TEXT_COLOR or _THEME_WARNING
   local textX = rect.x
   local textY = rect.y + 1
 
@@ -407,15 +484,18 @@ local function drawTxBattery(rect, txV, txState)
     textX = rect.x + 30
   end
 
-  lcd.drawText(textX, textY, txText, tf(MIDSIZE, txColor) + _SHADOWED)
+  drawShadowText(textX, textY, txText, MIDSIZE, txColor)
 end
 
-function M.draw(bounds, telemetry)
+function M.draw(bounds, telemetry, state, theme)
   if not bounds then
     return
   end
 
-  ensureIconsLoaded()
+  local textColor = (theme and theme.textColor) or _WHITE
+  _TEXT_COLOR = textColor
+  _TEXT_SHADOW_COLOR = (theme and theme.isLight) and _LIGHT_TEXT_SHADOW or _BLACK
+  ensureIconsLoaded(theme)
 
   local x = bounds.x
   local y = bounds.y
@@ -463,7 +543,7 @@ function M.draw(bounds, telemetry)
     modelY = y
   end
 
-  lcd.drawText(zone1.x + 4, modelY, modelText, tf(MIDSIZE, _THEME_PRIMARY) + _BOLD + _SHADOWED)
+  drawShadowText(zone1.x + 10, modelY, modelText, MIDSIZE, _TEXT_COLOR, _BOLD)
 
   local txV, txState = readTxBatteryInfo()
   drawTxBattery({ x = zone2.x + 2 + TOPBAR_STATUS_X_OFFSET, y = y, h = h }, txV, txState)
@@ -474,8 +554,8 @@ function M.draw(bounds, telemetry)
   local timeY = y + 4
   local dateY = timeY + 13
 
-  lcd.drawText(timeX, timeY, timeText, tf(SMLSIZE, _THEME_PRIMARY) + _SHADOWED)
-  lcd.drawText(dateX, dateY, dateText, tf(SMLSIZE, _THEME_SECONDARY) + _SHADOWED)
+  drawShadowText(timeX, timeY, timeText, SMLSIZE, _TEXT_COLOR)
+  drawShadowText(dateX, dateY, dateText, SMLSIZE, _TEXT_COLOR)
 end
 
 function M.drawSkeleton(bounds)

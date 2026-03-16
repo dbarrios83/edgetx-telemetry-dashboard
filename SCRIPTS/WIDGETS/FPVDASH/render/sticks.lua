@@ -52,9 +52,9 @@ local RX_BAT_ICON_Y_NUDGE = -15
 local LQ_TEXT_CHAR_W = RX_BAT_TEXT_CHAR_W
 local LQ_TEXT_H = RX_BAT_TEXT_H
 local LQ_ICON_TEXT_GAP = RX_BAT_ICON_TEXT_GAP
-local LQ_TEXT_X_NUDGE = 0
+local LQ_TEXT_X_NUDGE = -10
 local LQ_TEXT_Y_NUDGE = RX_BAT_TEXT_Y_NUDGE
-local LQ_ICON_X_NUDGE = 40
+local LQ_ICON_X_NUDGE = 30
 local LQ_ICON_Y_NUDGE = RX_BAT_ICON_Y_NUDGE
 
 local function themeColor(themeToken, fallback)
@@ -102,6 +102,47 @@ local CONNECTION_ICONS = {
 }
 
 local _iconsLoaded = false
+local _loadedIconFolder = nil
+local _TEXT_COLOR = _WHITE
+local _TEXT_SHADOW_COLOR = _BLACK
+local _LIGHT_TEXT_SHADOW = _WHITE
+
+local function drawShadowText(x, y, text, size, color)
+  if not lcd or type(lcd.drawText) ~= "function" then
+    return
+  end
+
+  local txtColor = (type(color) == "number") and color or _WHITE
+  local shadowColor = (type(_TEXT_SHADOW_COLOR) == "number") and _TEXT_SHADOW_COLOR or _BLACK
+
+  if type(TEXT_COLOR) == "number" and type(lcd.setColor) == "function" then
+    lcd.setColor(TEXT_COLOR, shadowColor)
+    lcd.drawText(x + 1, y + 1, text, size)
+
+    lcd.setColor(TEXT_COLOR, txtColor)
+    lcd.drawText(x, y, text, size)
+    return
+  end
+
+  if type(CUSTOM_COLOR) == "number" and type(lcd.setColor) == "function" then
+    lcd.setColor(CUSTOM_COLOR, shadowColor)
+    lcd.drawText(x + 1, y + 1, text, size + CUSTOM_COLOR)
+
+    lcd.setColor(CUSTOM_COLOR, txtColor)
+    lcd.drawText(x, y, text, size + CUSTOM_COLOR)
+    return
+  end
+
+  local okShadow = pcall(lcd.drawText, x + 1, y + 1, text, size, shadowColor)
+  if not okShadow then
+    lcd.drawText(x + 1, y + 1, text, size)
+  end
+
+  local okText = pcall(lcd.drawText, x, y, text, size, txtColor)
+  if not okText then
+    lcd.drawText(x, y, text, size)
+  end
+end
 
 local function openBitmapFromCandidates(roots, names)
   if not Bitmap then
@@ -120,23 +161,29 @@ local function openBitmapFromCandidates(roots, names)
   return nil
 end
 
-local function ensureIconsLoaded()
+local function ensureIconsLoaded(theme)
   if _iconsLoaded then return end
   if not Bitmap or type(Bitmap.open) ~= "function" then return end
 
   local roots = {
     "/WIDGETS/FPVDASH/icons/",
+    "/SCRIPTS/WIDGETS/FPVDASH/icons/",
     "WIDGETS/FPVDASH/icons/",
+    "SCRIPTS/WIDGETS/FPVDASH/icons/",
   }
 
   local linkRoots = {
     "/WIDGETS/FPVDASH/icons/link/",
+    "/SCRIPTS/WIDGETS/FPVDASH/icons/link/",
     "WIDGETS/FPVDASH/icons/link/",
+    "SCRIPTS/WIDGETS/FPVDASH/icons/link/",
   }
 
   local batteryRoots = {
     "/WIDGETS/FPVDASH/icons/battery/",
+    "/SCRIPTS/WIDGETS/FPVDASH/icons/battery/",
     "WIDGETS/FPVDASH/icons/battery/",
+    "SCRIPTS/WIDGETS/FPVDASH/icons/battery/",
   }
 
   BATTERY_ICONS.full = openBitmapFromCandidates(batteryRoots, { "battery-full.png" })
@@ -277,13 +324,21 @@ end
 
 local function batteryIconKey(telemetry, state)
   local batteryV = telemetry and telemetry.battery
-  if type(batteryV) ~= "number" or batteryV <= 0 then
+  if type(batteryV) ~= "number" or batteryV < 0 then
     return "ok"
   end
 
+  if batteryV == 0 then
+    return "dead"
+  end
+
   local cellV = getVoltagePerCell(batteryV)
-  if type(cellV) ~= "number" or cellV <= 0 then
+  if type(cellV) ~= "number" then
     return "ok"
+  end
+
+  if cellV <= 0 then
+    return "dead"
   end
 
   -- LiHV-aware per-cell thresholds.
@@ -307,7 +362,7 @@ local function formatBatteryText(telemetry)
   end
 
   local v = telemetry.battery
-  if type(v) ~= "number" or v <= 0 then
+  if type(v) ~= "number" or v < 0 then
     return "--.--V"
   end
 
@@ -362,7 +417,7 @@ local function drawLinkQualitySection(rect, telemetry, state)
   end
 
   local text = formatLinkQualityText(telemetry)
-  local color = _THEME_PRIMARY
+  local color = _TEXT_COLOR
 
   local tpwr = telemetry and toNumber(telemetry.txPower) or 0
   local rqly = telemetry and toNumber(telemetry.linkQuality) or 0
@@ -406,7 +461,7 @@ local function drawLinkQualitySection(rect, telemetry, state)
     lcd.drawBitmap(icon, iconX + LQ_ICON_X_NUDGE, iconY)
   end
 
-  lcd.drawText(textX, textY, text, tf(_MIDSIZE, color) + _SHADOWED)
+  drawShadowText(textX, textY, text, _MIDSIZE, color)
 end
 
 local function drawRxBatterySection(rect, telemetry, state)
@@ -416,7 +471,7 @@ local function drawRxBatterySection(rect, telemetry, state)
 
   local batteryState = state and state.battery or nil
   local text = formatBatteryText(telemetry)
-  local color = _THEME_PRIMARY
+  local color = _TEXT_COLOR
 
   local icon = BATTERY_ICONS[batteryIconKey(telemetry, batteryState)]
   local textW = #text * RX_BAT_TEXT_CHAR_W
@@ -452,7 +507,7 @@ local function drawRxBatterySection(rect, telemetry, state)
     lcd.drawBitmap(icon, startX + RX_BAT_ICON_X_NUDGE, iconY)
   end
 
-  lcd.drawText(textX, textY, text, tf(_MIDSIZE, color) + _SHADOWED)
+  drawShadowText(textX, textY, text, _MIDSIZE, color)
 end
 
 local function drawFilledSquare(cx, cy, size, color)
@@ -587,10 +642,10 @@ local function drawStickValues(leftRect, rightRect, yaw, throttle, roll, pitch)
   local bottomY = leftRect.y + leftRect.h + STICK_VALUES_BOTTOM_OUTSIDE_GAP + STICK_VALUES_BOTTOM_NUDGE
   if topY < 0 then topY = 0 end
 
-  lcd.drawText(leftX, topY, tText, tf(_SMLSIZE, _THEME_SECONDARY) + _SHADOWED)
-  lcd.drawText(leftX, bottomY, rText, tf(_SMLSIZE, _THEME_SECONDARY) + _SHADOWED)
-  lcd.drawText(rightX, topY, eText, tf(_SMLSIZE, _THEME_SECONDARY) + _SHADOWED)
-  lcd.drawText(rightX, bottomY, aText, tf(_SMLSIZE, _THEME_SECONDARY) + _SHADOWED)
+  drawShadowText(leftX, topY, tText, _SMLSIZE, _TEXT_COLOR)
+  drawShadowText(leftX, bottomY, rText, _SMLSIZE, _TEXT_COLOR)
+  drawShadowText(rightX, topY, eText, _SMLSIZE, _TEXT_COLOR)
+  drawShadowText(rightX, bottomY, aText, _SMLSIZE, _TEXT_COLOR)
 end
 
 local function isStickActive(xValue, yValue)
@@ -640,16 +695,19 @@ local function drawStickHud(rect, xValue, yValue, label)
   drawIndicator(dotX, dotY, STICK_DOT_SIZE, dotColor)
 
   if label and label ~= "" then
-    lcd.drawText(rect.x + 2, rect.y + 1, label, tf(_SMLSIZE, _THEME_PRIMARY))
+    drawShadowText(rect.x + 2, rect.y + 1, label, _SMLSIZE, _TEXT_COLOR)
   end
 end
 
-function M.draw(bounds, telemetry, state)
+function M.draw(bounds, telemetry, state, theme)
   if not bounds then
     return
   end
 
-  ensureIconsLoaded()
+  local textColor = (theme and theme.textColor) or _WHITE
+  _TEXT_COLOR = textColor
+  _TEXT_SHADOW_COLOR = (theme and theme.isLight) and _LIGHT_TEXT_SHADOW or _BLACK
+  ensureIconsLoaded(theme)
 
   local sideW = math.max(84, math.floor(bounds.w * 0.19))
   sideW = math.min(sideW, 116)
@@ -688,7 +746,7 @@ function M.draw(bounds, telemetry, state)
   local boxSize = math.min(innerH, math.floor((innerW - gap) / 2)) - STICK_BOX_SIZE_REDUCTION
 
   if boxSize < 16 then
-    lcd.drawText(sticksArea.x + 2, sticksArea.y + 2, "Sticks", tf(_SMLSIZE, _THEME_SECONDARY))
+    drawShadowText(sticksArea.x + 2, sticksArea.y + 2, "Sticks", _SMLSIZE, _TEXT_COLOR)
     drawLinkQualitySection(leftSection, telemetry, state)
     drawRxBatterySection(rightSection, telemetry, state)
     return

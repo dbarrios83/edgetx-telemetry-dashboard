@@ -15,6 +15,8 @@ local TIMER_TEXT_Y_OFFSET = -4
 
 local ICON_CLOCK = nil
 local _iconsLoaded = false
+local _loadedIconFolder = nil
+local _TEXT_COLOR = _WHITE
 
 local function openBitmapFromCandidates(roots, names)
   if not Bitmap or type(Bitmap.open) ~= "function" then
@@ -33,12 +35,18 @@ local function openBitmapFromCandidates(roots, names)
   return nil
 end
 
-local function ensureIconsLoaded()
-  if _iconsLoaded then
+local function ensureIconsLoaded(theme)
+  local iconFolder = (theme and theme.iconFolder) or "dark"
+  if _iconsLoaded and _loadedIconFolder == iconFolder then
     return
   end
+  _loadedIconFolder = iconFolder
 
   local roots = {
+    "/WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
+    "/SCRIPTS/WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
+    "WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
+    "SCRIPTS/WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
     "/WIDGETS/FPVDASH/icons/",
     "/SCRIPTS/WIDGETS/FPVDASH/icons/",
     "WIDGETS/FPVDASH/icons/",
@@ -54,19 +62,36 @@ local function drawShadowText(x, y, text, size, color)
     return
   end
 
-  local hasCustomColor = type(CUSTOM_COLOR) == "number"
+  local txtColor = (type(color) == "number") and color or _WHITE
+  local shadowColor = (txtColor == _WHITE) and _BLACK or _WHITE
 
-  if hasCustomColor and type(lcd.setColor) == "function" then
-    lcd.setColor(CUSTOM_COLOR, _BLACK)
+  if type(TEXT_COLOR) == "number" and type(lcd.setColor) == "function" then
+    lcd.setColor(TEXT_COLOR, shadowColor)
+    lcd.drawText(x + 1, y + 1, text, size)
+
+    lcd.setColor(TEXT_COLOR, txtColor)
+    lcd.drawText(x, y, text, size)
+    return
+  end
+
+  if type(CUSTOM_COLOR) == "number" and type(lcd.setColor) == "function" then
+    lcd.setColor(CUSTOM_COLOR, shadowColor)
     lcd.drawText(x + 1, y + 1, text, size + CUSTOM_COLOR)
 
-    lcd.setColor(CUSTOM_COLOR, color)
+    lcd.setColor(CUSTOM_COLOR, txtColor)
     lcd.drawText(x, y, text, size + CUSTOM_COLOR)
     return
   end
 
-  lcd.drawText(x + 1, y + 1, text, size)
-  lcd.drawText(x, y, text, size)
+  local okShadow = pcall(lcd.drawText, x + 1, y + 1, text, size, shadowColor)
+  if not okShadow then
+    lcd.drawText(x + 1, y + 1, text, size)
+  end
+
+  local okText = pcall(lcd.drawText, x, y, text, size, txtColor)
+  if not okText then
+    lcd.drawText(x, y, text, size)
+  end
 end
 
 local function toNumber(v)
@@ -134,7 +159,7 @@ local function drawTimerMetric(x, y, w, h, icon, text)
     lcd.drawBitmap(icon, startX, iconY)
   end
 
-  drawShadowText(startX + ICON_SIZE + ICON_TEXT_GAP, textY, text, _SMLSIZE, _WHITE)
+  drawShadowText(startX + ICON_SIZE + ICON_TEXT_GAP, textY, text, _SMLSIZE, _TEXT_COLOR)
 end
 
 local function readTimer(name)
@@ -144,12 +169,14 @@ local function readTimer(name)
   return getValue(name)
 end
 
-function M.draw(rect, telemetry, state)
+function M.draw(rect, telemetry, state, theme)
   if not rect then
     return
   end
 
-  ensureIconsLoaded()
+  local textColor = (theme and theme.textColor) or _WHITE
+  _TEXT_COLOR = textColor
+  ensureIconsLoaded(theme)
 
   local colW = math.floor(rect.w / 3)
   local col0 = rect.x

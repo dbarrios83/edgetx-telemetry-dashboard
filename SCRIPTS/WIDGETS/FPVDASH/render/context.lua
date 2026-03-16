@@ -19,8 +19,10 @@ local TEXT_H = 8
 local TEXT_Y_OFFSET = -4
 local TEXT_SLOT_W = 34
 local CONTEXT_X_OFFSET = -4
+local _TEXT_COLOR = _WHITE
 
 local _iconsLoaded = false
+local _loadedIconFolder = nil
 local ICON_CURRENT = nil
 local ICON_RADIO = nil
 local ICON_RFMD = nil
@@ -30,14 +32,27 @@ local ICON_SAT = nil
 local ICON_ANT = nil
 local ICON_DRONE = nil
 
-local PACKET_RATE_FROM_RFMD = {
-  [1] = 25,
-  [2] = 50,
-  [3] = 100,
-  [4] = 150,
-  [5] = 250,
-  [6] = 500,
-  [7] = 1000,
+local RFMD_PACKET_RATE = {
+  -- ExpressLRS RF mode decoding (2.4 GHz)
+
+  [21] = 50,
+  [22] = 50,
+
+  [23] = 100,
+  [24] = 150,
+
+  [25] = 200,
+  [26] = 200,
+
+  [27] = 250,
+  [28] = 333,
+
+  [29] = 500,
+
+  -- Gemini / dual modes
+  [30] = 250,  -- D250
+  [31] = 500,  -- D500
+  [32] = 500,  -- F500
 }
 
 local toNumber
@@ -59,12 +74,18 @@ local function openBitmapFromCandidates(roots, names)
   return nil
 end
 
-local function ensureIconsLoaded()
-  if _iconsLoaded then
+local function ensureIconsLoaded(theme)
+  local iconFolder = (theme and theme.iconFolder) or "dark"
+  if _iconsLoaded and _loadedIconFolder == iconFolder then
     return
   end
+  _loadedIconFolder = iconFolder
 
   local roots = {
+    "/WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
+    "/SCRIPTS/WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
+    "WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
+    "SCRIPTS/WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
     "/WIDGETS/FPVDASH/icons/",
     "/SCRIPTS/WIDGETS/FPVDASH/icons/",
     "WIDGETS/FPVDASH/icons/",
@@ -88,19 +109,36 @@ local function drawShadowText(x, y, text, size, color)
     return
   end
 
-  local hasCustomColor = type(CUSTOM_COLOR) == "number"
+  local txtColor = (type(color) == "number") and color or _WHITE
+  local shadowColor = (txtColor == _WHITE) and _BLACK or _WHITE
 
-  if hasCustomColor and type(lcd.setColor) == "function" then
-    lcd.setColor(CUSTOM_COLOR, _BLACK)
+  if type(TEXT_COLOR) == "number" and type(lcd.setColor) == "function" then
+    lcd.setColor(TEXT_COLOR, shadowColor)
+    lcd.drawText(x + 1, y + 1, text, size)
+
+    lcd.setColor(TEXT_COLOR, txtColor)
+    lcd.drawText(x, y, text, size)
+    return
+  end
+
+  if type(CUSTOM_COLOR) == "number" and type(lcd.setColor) == "function" then
+    lcd.setColor(CUSTOM_COLOR, shadowColor)
     lcd.drawText(x + 1, y + 1, text, size + CUSTOM_COLOR)
 
-    lcd.setColor(CUSTOM_COLOR, color)
+    lcd.setColor(CUSTOM_COLOR, txtColor)
     lcd.drawText(x, y, text, size + CUSTOM_COLOR)
     return
   end
 
-  lcd.drawText(x + 1, y + 1, text, size)
-  lcd.drawText(x, y, text, size)
+  local okShadow = pcall(lcd.drawText, x + 1, y + 1, text, size, shadowColor)
+  if not okShadow then
+    lcd.drawText(x + 1, y + 1, text, size)
+  end
+
+  local okText = pcall(lcd.drawText, x, y, text, size, txtColor)
+  if not okText then
+    lcd.drawText(x, y, text, size)
+  end
 end
 
 local function drawIconMetric(x, y, w, h, icon, text, color)
@@ -126,7 +164,7 @@ local function drawIconMetric(x, y, w, h, icon, text, color)
     textY = y
   end
 
-  local metricColor = (type(color) == "number") and color or _WHITE
+  local metricColor = (type(color) == "number") and color or _TEXT_COLOR
 
   if icon and type(lcd.drawBitmap) == "function" then
     if type(CUSTOM_COLOR) == "number" and type(lcd.setColor) == "function" then
@@ -148,7 +186,7 @@ end
 local function satStateColor(raw)
   local sats = toNumber(raw)
   if type(sats) ~= "number" then
-    return _WHITE
+    return _TEXT_COLOR
   end
 
   if sats < 5 then
@@ -224,12 +262,22 @@ end
 
 local function formatPacketRate(raw)
   local n = toNumber(raw)
+
   if not n then
-    return "--Hz"
+    return "N/A"
   end
 
-  local rate = PACKET_RATE_FROM_RFMD[n] or n
-  return string.format("%dHz", math.floor(rate + 0.5))
+  -- Decode ELRS RFMD telemetry
+  if RFMD_PACKET_RATE[n] then
+    return tostring(RFMD_PACKET_RATE[n]) .. "Hz"
+  end
+
+  -- If value already looks like a real packet rate
+  if n >= 25 and n <= 1000 then
+    return tostring(math.floor(n + 0.5)) .. "Hz"
+  end
+
+  return "N/A"
 end
 
 local function formatRssi(raw)
@@ -251,6 +299,15 @@ local function formatSat(raw)
     return "--"
   end
   return tostring(math.floor(n + 0.5))
+end
+
+local function hasValidGps()
+  if not getValue then
+    return false
+  end
+
+  local gpsValue = getValue("GPS")
+  return type(gpsValue) == "table"
 end
 
 local function formatAntenna(raw)
@@ -281,12 +338,14 @@ local function formatFlightMode(raw)
   return "---"
 end
 
-function M.draw(rect, telemetry, state)
+function M.draw(rect, telemetry, state, theme)
   if not rect then
     return
   end
 
-  ensureIconsLoaded()
+  local textColor = (theme and theme.textColor) or _WHITE
+  _TEXT_COLOR = textColor
+  ensureIconsLoaded(theme)
 
   local x = rect.x + CONTEXT_X_OFFSET
   local y = rect.y
@@ -334,15 +393,22 @@ function M.draw(rect, telemetry, state)
 
   local curText, pwrText, rateText, rssi1Text
   local satText, antText, fmodeText, rssi2Text
-  local satColor = _WHITE
+  local satColor = _TEXT_COLOR
 
   if connected then
+    local gpsValid = hasValidGps()
+
     curText = formatCurrent(curr)
     pwrText = formatTxPower(tpwr)
     rateText = formatPacketRate(rfmd)
     rssi1Text = formatRssi(rssi1)
-    satText = formatSat(sats)
-    satColor = satStateColor(sats)
+    if gpsValid then
+      satText = formatSat(sats)
+      satColor = satStateColor(sats)
+    else
+      satText = "N/A"
+      satColor = _TEXT_COLOR
+    end
     antText = formatAntenna(ant)
     fmodeText = formatFlightMode(fm)
     rssi2Text = formatRssi(rssi2)
