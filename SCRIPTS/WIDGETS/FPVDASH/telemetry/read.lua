@@ -31,6 +31,9 @@ local FIELD_SENSORS = {
 }
 
 local PACKET_RATE_FROM_RFMD = {
+  -- Keep legacy mappings 1..7 exactly as the widget already expects today.
+  -- Some newer ELRS RFMD tables reuse these indexes with different meanings,
+  -- but changing them here would regress users who currently see correct rates.
   [1] = 25,
   [2] = 50,
   [3] = 100,
@@ -38,6 +41,27 @@ local PACKET_RATE_FROM_RFMD = {
   [5] = 250,
   [6] = 500,
   [7] = 1000,
+
+  -- Additional exact mappings that do not conflict with the widget's
+  -- existing 1..7 behavior. RFMD decoding must remain exact-only:
+  -- never approximate, infer, or guess packet rates.
+  [8] = 333,
+  [9] = 500,
+  [10] = 50,
+  [11] = 100,
+  [12] = 150,
+  [13] = 200,
+  [14] = 250,
+  [15] = 333,
+  [16] = 500,
+  [25] = 50,
+  [26] = 100,
+  [27] = 150,
+  [28] = 250,
+  [29] = 500,
+  [30] = 250,
+  [31] = 500,
+  [32] = 500,
 }
 
 local snapshot = {
@@ -163,23 +187,34 @@ local function toNumber(v)
   return nil
 end
 
+local function resolvePacketRateFromRfmd(rfmd)
+  if rfmd == nil then
+    return nil
+  end
+
+  -- RFMD index 0 is commonly reported during telemetry loss, so we avoid
+  -- mapping it to 4 Hz to prevent false "valid" packet-rate display.
+  if rfmd == 0 then
+    return nil
+  end
+
+  local mappedRate = PACKET_RATE_FROM_RFMD[rfmd]
+  if mappedRate ~= nil then
+    return mappedRate
+  end
+
+  -- Unknown RFMD values must stay unresolved so the existing UI fallback
+  -- renders a neutral missing state rather than an incorrect "N Hz" value.
+  return nil
+end
+
 local function normalizePacketRate(raw)
   local n = toNumber(raw)
   if not n then
     return nil
   end
 
-  -- RFMD index 0 is commonly reported during telemetry loss, so we avoid
-  -- mapping it to 4 Hz to prevent false "valid" packet-rate display.
-  if n >= 1 and n <= 7 and PACKET_RATE_FROM_RFMD[n] then
-    return PACKET_RATE_FROM_RFMD[n]
-  end
-
-  if n == 0 then
-    return nil
-  end
-
-  return n
+  return resolvePacketRateFromRfmd(n)
 end
 
 local function normalizeFlightMode(raw)
