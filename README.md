@@ -11,8 +11,12 @@ This guide explains how to install and configure the `FPVDASH` widget from this 
 
 1. EdgeTX firmware installed on your radio.
 2. A valid EdgeTX SD card contents pack for your firmware version.
-3. A model with telemetry sensors discovered (recommended before final widget setup).
-4. Supported target radios:
+3. In Betaflight, enable **Telemetry Output** in the **Receiver** tab.
+
+![Betaflight Telemetry Output](docs/img/telemetry_betafligth.png)
+
+4. A model with telemetry sensors discovered (recommended before final widget setup).
+5. Supported target radios:
 
    **Primary target — 480 × 320 px:**
    RadioMaster TX15, TX15 Max · Jumper T15, T15 Pro
@@ -265,6 +269,12 @@ In practice, it groups into:
 
 - Widget not visible:
 	Confirm files are under `/WIDGETS/FPVDASH/` and `main.lua` exists.
+- Battery always shows `1S` regardless of actual cell count:
+	In the Betaflight CLI, run:
+	```text
+	set report_cell_voltage = OFF
+	save
+	```
 - Missing telemetry values:
 	Re-run **Discover new sensors** in model telemetry settings.
 - Stale values after switching drones:
