@@ -349,7 +349,7 @@ local RATE_CARD_SPEC = {
   formatValue = formatRateValue,
   unit = "Hz",
   valueFlags = SMLSIZE,
-  placeholder = "--",
+  placeholder = "---",
 }
 
 local LQ_CARD_SPEC = {
