@@ -30,15 +30,44 @@ local FIELD_SENSORS = {
   activeAntenna = { "ANT" },
 }
 
-local PACKET_RATE_FROM_RFMD = {
+local RATE_MAP = {
+  [0] = 4,
   [1] = 25,
   [2] = 50,
   [3] = 100,
   [4] = 150,
-  [5] = 250,
-  [6] = 500,
-  [7] = 1000,
+  [5] = 200,
+  [6] = 250,
+  [7] = 250,
+  [8] = 333,
+  [9] = 500,
+
+  [10] = 50,
+  [11] = 100,
+  [12] = 150,
+  [13] = 200,
+  [14] = 250,
+  [15] = 333,
+  [16] = 500,
+
+  [25] = 50,
+  [26] = 100,
+  [27] = 150,
+  [28] = 250,
+  [29] = 500,
+
+  [30] = 250,
+  [31] = 500,
+  [32] = 500,
+  [33] = 1000,
 }
+
+local function getPacketRate(rfmd)
+  if rfmd == nil then
+    return nil
+  end
+  return RATE_MAP[rfmd]
+end
 
 local snapshot = {
   battery = 0,
@@ -169,17 +198,11 @@ local function normalizePacketRate(raw)
     return nil
   end
 
-  -- RFMD index 0 is commonly reported during telemetry loss, so we avoid
-  -- mapping it to 4 Hz to prevent false "valid" packet-rate display.
-  if n >= 1 and n <= 7 and PACKET_RATE_FROM_RFMD[n] then
-    return PACKET_RATE_FROM_RFMD[n]
-  end
-
-  if n == 0 then
+  if n % 1 ~= 0 then
     return nil
   end
 
-  return n
+  return getPacketRate(n)
 end
 
 local function normalizeFlightMode(raw)

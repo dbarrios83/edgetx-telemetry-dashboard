@@ -111,6 +111,7 @@ Usage:
 
 What it shows:
 ExpressLRS packet rate decoded from RFMD telemetry.
+-- Valid for ELRS 2.4GHz LoRa modes
 
 Why it matters:
 Confirms your control link configuration.

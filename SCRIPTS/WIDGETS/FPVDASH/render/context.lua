@@ -33,29 +33,6 @@ local ICON_SAT = nil
 local ICON_ANT = nil
 local ICON_DRONE = nil
 
-local RFMD_PACKET_RATE = {
-  -- ExpressLRS RF mode decoding (2.4 GHz)
-
-  [21] = 50,
-  [22] = 50,
-
-  [23] = 100,
-  [24] = 150,
-
-  [25] = 200,
-  [26] = 200,
-
-  [27] = 250,
-  [28] = 333,
-
-  [29] = 500,
-
-  -- Gemini / dual modes
-  [30] = 250,  -- D250
-  [31] = 500,  -- D500
-  [32] = 500,  -- F500
-}
-
 local toNumber
 
 local function openBitmapFromCandidates(roots, names)
@@ -266,20 +243,10 @@ local function formatPacketRate(raw)
   local n = toNumber(raw)
 
   if not n then
-    return "N/A"
+    return "--"
   end
 
-  -- Decode ELRS RFMD telemetry
-  if RFMD_PACKET_RATE[n] then
-    return tostring(RFMD_PACKET_RATE[n]) .. "Hz"
-  end
-
-  -- If value already looks like a real packet rate
-  if n >= 25 and n <= 1000 then
-    return tostring(math.floor(n + 0.5)) .. "Hz"
-  end
-
-  return "N/A"
+  return tostring(math.floor(n + 0.5)) .. "Hz"
 end
 
 local function formatRssi(raw)
@@ -384,10 +351,12 @@ function M.draw(rect, telemetry, state, theme)
 
   local connected = telemetry and telemetry.connected == true
 
-  local curr, rfmd, tpwr, rssi1, rssi2, sats, fm, rsnr, cap
+  local curr, packetRate, tpwr, rssi1, rssi2, sats, fm, rsnr, cap
   if connected then
     curr = readValue("Curr")
-    rfmd = readValue("RFMD")
+    packetRate = (telemetry and telemetry.available and telemetry.available.packetRate)
+      and telemetry.packetRate
+      or nil
     tpwr = readValue("TPWR")
     rssi1 = readValueFirst({ "1RSS", "RSSI" })
     rssi2 = readValueFirst({ "2RSS", "RSSI2" })
@@ -397,7 +366,6 @@ function M.draw(rect, telemetry, state, theme)
     cap = readValueFirst({ "Capa", "CAP", "Capacity" })
 
     if curr == nil and telemetry then curr = telemetry.current end
-    if rfmd == nil and telemetry then rfmd = telemetry.packetRate end
     if tpwr == nil and telemetry then tpwr = telemetry.txPower end
     if telemetry then
       local n1 = toNumber(rssi1)
@@ -428,7 +396,7 @@ function M.draw(rect, telemetry, state, theme)
     local rssiBest = bestRssi(rssi1, rssi2)
 
     curText = formatCurrent(curr)
-    rateText = formatPacketRate(rfmd)
+    rateText = formatPacketRate(packetRate)
     pwrText = formatTxPower(tpwr)
     rssiText = formatRssi(rssiBest)
     if gpsValid then
