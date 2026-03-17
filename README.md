@@ -77,24 +77,189 @@ If the screen is not in `App Mode`, the widget may not load or may not render co
 - Timers row
 - Footer with ELRS version and EdgeTX version
 
-## Displayed Metrics
+## Context Telemetry Metrics
 
-The dashboard can display these telemetry metrics and status values:
-- TX battery voltage
-- RX battery voltage / cell voltage
-- Link Quality (LQ)
-- Packet rate (decoded from RFMD when available)
-- RSSI 1
-- RSSI 2
-- Current draw (A)
-- TX power (mW)
-- Satellite count
-- Active antenna
-- Flight mode
-- Timer values (when enabled)
-- ELRS module version
-- EdgeTX firmware version
-- Stick positions (R/T/A/E axes)
+The context section displays secondary telemetry used for pre-flight validation and post-flight analysis.
+These metrics complement the primary safety indicators such as battery and link quality shown elsewhere in the dashboard.
+
+### ![CUR icon](SCRIPTS/WIDGETS/FPVDASH/icons/dark/current.png) CUR - Current (Amps)
+
+What it shows:
+Real-time current draw from the flight controller.
+
+Why it matters:
+Detects electrical issues before takeoff.
+
+Typical values:
+- Pre-flight: 0-1A
+- Idle (armed, no throttle): 1-5A
+- Hover: 5-20A depending on build
+
+Warning signs:
+- High current at idle can indicate motor, ESC, or short issues.
+- Sudden spikes can indicate prop or wiring problems.
+
+Usage:
+- Pre-flight safety check
+- Post-flight power analysis
+
+### ![RFMD icon](SCRIPTS/WIDGETS/FPVDASH/icons/dark/rfmd.png) RFMD - Packet Rate (Hz)
+
+What it shows:
+ExpressLRS packet rate decoded from RFMD telemetry.
+
+Why it matters:
+Confirms your control link configuration.
+
+Typical values:
+- 25 Hz
+- 50 Hz
+- 100 Hz
+- 150 Hz
+- 250 Hz
+- 500 Hz
+- 1000 Hz
+
+Warning signs:
+- Wrong rate can indicate an incorrect model profile.
+- Unexpected changes can indicate dynamic mode issues.
+
+Usage:
+- Pre-flight configuration check
+
+### ![TPWR icon](SCRIPTS/WIDGETS/FPVDASH/icons/dark/radio.png) TPWR - TX Power (mW)
+
+What it shows:
+Current transmitter output power.
+
+Why it matters:
+Indicates link strength and dynamic power behavior.
+
+Typical values:
+- 10-1000 mW depending on setup
+
+Warning signs:
+- Stuck at low power can indicate a configuration issue.
+- Constantly maxed-out power can indicate poor signal or antenna issues.
+
+Usage:
+- Pre-flight link validation
+- Post-flight RF diagnostics
+
+### ![RSSI icon](SCRIPTS/WIDGETS/FPVDASH/icons/dark/signal.png) RSSI - Signal Strength (Best Antenna)
+
+What it shows:
+The best RSSI value from receiver antennas.
+
+Why it matters:
+Measures raw signal strength.
+
+Typical values:
+- -50 to -80 dBm: strong
+- -90 to -100 dBm: weak
+
+Warning signs:
+- Very low RSSI can indicate an antenna issue.
+- Large fluctuations can indicate interference or orientation problems.
+
+Usage:
+- Link diagnostics
+- Antenna troubleshooting
+
+### ![SATS icon](SCRIPTS/WIDGETS/FPVDASH/icons/dark/sat.png) SATS - GPS Satellites
+
+What it shows:
+Number of GPS satellites detected.
+
+Why it matters:
+Determines GPS reliability for functions such as return-to-home and position hold.
+
+Typical values:
+- 0: no lock
+- 1-4: poor
+- 5-7: usable
+- 8+: good
+
+Special cases:
+- `N/A`: no telemetry or GPS not detected
+
+Usage:
+- Pre-flight GPS readiness
+- Post-flight GPS performance
+
+### ![FM icon](SCRIPTS/WIDGETS/FPVDASH/icons/dark/drone.png) FM - Flight Mode
+
+What it shows:
+Current flight mode from the flight controller.
+
+Why it matters:
+Prevents arming in the wrong mode.
+
+Typical values:
+- ANGLE
+- HORIZON
+- AIR
+- ACRO
+
+Warning signs:
+- Unexpected mode can indicate switch misconfiguration.
+
+Usage:
+- Pre-flight verification
+
+### ![RSNR icon](SCRIPTS/WIDGETS/FPVDASH/icons/dark/noise.png) RSNR - Signal-to-Noise Ratio (dB)
+
+What it shows:
+Quality of the radio signal relative to background noise.
+
+Why it matters:
+Often more informative than RSSI alone for link quality.
+
+Typical values:
+- Greater than 10 dB: excellent
+- 5-10 dB: good
+- 0-5 dB: weak
+- Less than 0 dB: poor
+
+Warning signs:
+- Low RSNR with good RSSI can indicate interference.
+- Negative values can indicate an unstable link.
+
+Usage:
+- Link quality diagnostics
+- Interference detection
+
+### ![CAP icon](SCRIPTS/WIDGETS/FPVDASH/icons/dark/battery.png) CAP - Consumed Capacity (mAh)
+
+What it shows:
+Battery capacity consumed during the flight.
+
+Why it matters:
+Helps evaluate energy consumption and battery planning.
+
+Typical values:
+- Depends on battery size and flight style, for example 500-1500 mAh
+
+Warning signs:
+- Very high consumption can indicate an inefficient setup.
+- Very low readings can indicate the sensor is not configured.
+
+Usage:
+- Post-flight analysis
+- Battery planning
+
+### Summary
+
+The context section is intended to answer these operational questions:
+- Is the drone safe to arm?
+- Is the link configured and stable?
+- Is the GPS ready?
+- Did the system behave correctly after the flight?
+
+In practice, it groups into:
+- Pre-flight safety checks: CUR, RFMD, TPWR, SATS, FM
+- Link diagnostics: RSSI, RSNR
+- Post-flight insight: CAP
 
 ## Troubleshooting
 

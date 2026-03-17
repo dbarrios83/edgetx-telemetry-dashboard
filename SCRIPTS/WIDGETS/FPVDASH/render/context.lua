@@ -27,6 +27,7 @@ local ICON_CURRENT = nil
 local ICON_RADIO = nil
 local ICON_RFMD = nil
 local ICON_SIGNAL = nil
+local ICON_NOISE = nil
 local ICON_BATTERY = nil
 local ICON_SAT = nil
 local ICON_ANT = nil
@@ -96,6 +97,7 @@ local function ensureIconsLoaded(theme)
   ICON_RADIO = openBitmapFromCandidates(roots, { "radio.png" })
   ICON_RFMD = openBitmapFromCandidates(roots, { "rfmd.png" })
   ICON_SIGNAL = openBitmapFromCandidates(roots, { "signal.png" })
+  ICON_NOISE = openBitmapFromCandidates(roots, { "noise.png" })
   ICON_BATTERY = openBitmapFromCandidates(roots, { "battery.png" })
   ICON_SAT = openBitmapFromCandidates(roots, { "sat.png", "sats.png" })
   ICON_ANT = openBitmapFromCandidates(roots, { "antenna.png" })
@@ -293,6 +295,22 @@ local function formatRssi(raw)
   return tostring(math.ceil(n - 0.5)) .. "dBm"
 end
 
+local function bestRssi(v1, v2)
+  local n1 = toNumber(v1)
+  local n2 = toNumber(v2)
+
+  -- In EdgeTX telemetry, 0 often means missing/not-updated for RSSI.
+  -- Ignore zero so an absent antenna value does not mask a valid negative dBm.
+  if n1 == 0 then n1 = nil end
+  if n2 == 0 then n2 = nil end
+
+  if n1 and n2 then
+    return (n1 > n2) and n1 or n2
+  end
+
+  return n1 or n2
+end
+
 local function formatSat(raw)
   local n = toNumber(raw)
   if not n then
@@ -321,6 +339,15 @@ local function formatAntenna(raw)
   end
 
   return "ANT-"
+end
+
+local function formatCapacity(raw)
+  local n = toNumber(raw)
+  if not n then
+    return "N/A"
+  end
+
+  return tostring(math.floor(n + 0.5)) .. "mAh"
 end
 
 local function formatFlightMode(raw)
@@ -357,20 +384,21 @@ function M.draw(rect, telemetry, state, theme)
 
   local connected = telemetry and telemetry.connected == true
 
-  local curr, tpwr, rfmd, rssi1, sats, ant, fm, rssi2
+  local curr, rfmd, tpwr, rssi1, rssi2, sats, fm, rsnr, cap
   if connected then
     curr = readValue("Curr")
-    tpwr = readValue("TPWR")
     rfmd = readValue("RFMD")
+    tpwr = readValue("TPWR")
     rssi1 = readValueFirst({ "1RSS", "RSSI" })
-    sats = readValueFirst({ "Sats", "SATS", "SAT" })
-    ant = readValue("ANT")
-    fm = readValue("FM")
     rssi2 = readValueFirst({ "2RSS", "RSSI2" })
+    sats = readValueFirst({ "Sats", "SATS", "SAT" })
+    fm = readValue("FM")
+    rsnr = readValueFirst({ "RSNR", "SNR" })
+    cap = readValueFirst({ "Capa", "CAP", "Capacity" })
 
     if curr == nil and telemetry then curr = telemetry.current end
-    if tpwr == nil and telemetry then tpwr = telemetry.txPower end
     if rfmd == nil and telemetry then rfmd = telemetry.packetRate end
+    if tpwr == nil and telemetry then tpwr = telemetry.txPower end
     if telemetry then
       local n1 = toNumber(rssi1)
       local n2 = toNumber(rssi2)
@@ -386,22 +414,23 @@ function M.draw(rect, telemetry, state, theme)
       end
     end
     if sats == nil and telemetry then sats = telemetry.sats or telemetry.satellites end
-    if ant == nil and telemetry then ant = telemetry.activeAntenna end
     if fm == nil and telemetry then fm = telemetry.flightMode end
     if rssi2 == nil and telemetry then rssi2 = telemetry.rssi2 end
+    if cap == nil and telemetry then cap = telemetry.capacity end
   end
 
-  local curText, pwrText, rateText, rssi1Text
-  local satText, antText, fmodeText, rssi2Text
+  local curText, rateText, pwrText, rssiText
+  local satText, fmText, snrText, capText
   local satColor = _TEXT_COLOR
 
   if connected then
     local gpsValid = hasValidGps()
+    local rssiBest = bestRssi(rssi1, rssi2)
 
     curText = formatCurrent(curr)
-    pwrText = formatTxPower(tpwr)
     rateText = formatPacketRate(rfmd)
-    rssi1Text = formatRssi(rssi1)
+    pwrText = formatTxPower(tpwr)
+    rssiText = formatRssi(rssiBest)
     if gpsValid then
       satText = formatSat(sats)
       satColor = satStateColor(sats)
@@ -409,19 +438,19 @@ function M.draw(rect, telemetry, state, theme)
       satText = "N/A"
       satColor = _TEXT_COLOR
     end
-    antText = formatAntenna(ant)
-    fmodeText = formatFlightMode(fm)
-    rssi2Text = formatRssi(rssi2)
+    fmText = formatFlightMode(fm)
+    snrText = formatRssi(rsnr)
+    capText = formatCapacity and formatCapacity(cap) or (toNumber(cap) and tostring(math.floor(toNumber(cap) + 0.5)) .. "mAh" or "N/A")
   else
     -- Disconnected view: keep placeholders compact (no units / no ANT prefix).
     curText = "--"
-    pwrText = "--"
     rateText = "--"
-    rssi1Text = "--"
+    pwrText = "--"
+    rssiText = "--"
     satText = "--"
-    antText = "--"
-    fmodeText = "--"
-    rssi2Text = "--"
+    fmText = "--"
+    snrText = "--"
+    capText = "--"
   end
 
   local row1Y = y
@@ -435,14 +464,14 @@ function M.draw(rect, telemetry, state, theme)
   local c3w = w - (colW * 3)
 
   drawIconMetric(c0x, row1Y, colW, rowH, ICON_CURRENT, curText)
-  drawIconMetric(c1x, row1Y, colW, rowH, ICON_RADIO, pwrText)
-  drawIconMetric(c2x, row1Y, colW, rowH, ICON_RFMD, rateText)
-  drawIconMetric(c3x, row1Y, c3w, rowH, ICON_SIGNAL, rssi1Text)
+  drawIconMetric(c1x, row1Y, colW, rowH, ICON_RFMD, rateText)
+  drawIconMetric(c2x, row1Y, colW, rowH, ICON_RADIO, pwrText)
+  drawIconMetric(c3x, row1Y, c3w, rowH, ICON_SIGNAL, rssiText)
 
   drawIconMetric(c0x, row2Y, colW, row2H, ICON_SAT or ICON_BATTERY, satText, satColor)
-  drawIconMetric(c1x, row2Y, colW, row2H, ICON_ANT, antText)
-  drawIconMetric(c2x, row2Y, colW, row2H, ICON_DRONE, fmodeText)
-  drawIconMetric(c3x, row2Y, c3w, row2H, ICON_SIGNAL, rssi2Text)
+  drawIconMetric(c1x, row2Y, colW, row2H, ICON_DRONE, fmText)
+  drawIconMetric(c2x, row2Y, colW, row2H, ICON_NOISE or ICON_SIGNAL, snrText)
+  drawIconMetric(c3x, row2Y, c3w, row2H, ICON_BATTERY, capText)
 end
 
 function M.drawSkeleton(rect)
