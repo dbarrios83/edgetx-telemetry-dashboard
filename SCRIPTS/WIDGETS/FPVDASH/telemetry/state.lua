@@ -12,13 +12,14 @@ M.CRITICAL     = "CRITICAL"
 M.UNKNOWN      = "UNKNOWN"
 M.DISCONNECTED = "DISCONNECTED"
 
--- Detect approximate LiPo cell count from total pack voltage.
--- Uses max-charge voltage of 4.2 V per cell.
+-- Detect approximate LiPo/LiHV cell count from total pack voltage.
+-- Uses a ceiling against max-charge voltage so exact full-charge values such
+-- as 8.70 V and 17.40 V map to 2S and 4S instead of the next pack size.
 local function detectCellCount(voltage)
   if not voltage or voltage <= 0 then
     return 1
   end
-  return math.floor(voltage / 4.2) + 1
+  return math.max(1, math.ceil((voltage / 4.35) - 0.0001))
 end
 
 -- Evaluate battery state from total pack voltage.

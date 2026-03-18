@@ -297,8 +297,9 @@ local function mapAxis(value, minPixel, maxPixel, invert)
 end
 
 -- Estimate voltage per cell and cell count from total RX battery voltage.
--- Mirrors the provided formula and falls back safely when pack voltage is
--- too low or outside expected per-cell bounds.
+-- Uses the smallest cell count whose per-cell voltage does not exceed the
+-- configured max, with a tiny epsilon to keep exact full-charge values such
+-- as 8.70 V (2S LiHV) from rounding up to the next pack size.
 local function getVoltagePerCell(totalVoltage)
   if utils and type(utils.getVoltagePerCell) == "function" then
     local perCell, cellCount = utils.getVoltagePerCell(totalVoltage)
@@ -309,12 +310,13 @@ local function getVoltagePerCell(totalVoltage)
 
   local maxCellVoltage = 4.35
   local minCellVoltage = 3.0
+  local epsilon = 0.0001
 
-  if (totalVoltage or 0) > 5 then
-    local estimatedCellCount = math.floor(totalVoltage / maxCellVoltage) + 1
+  if (totalVoltage or 0) > 0 then
+    local estimatedCellCount = math.max(1, math.ceil((totalVoltage / maxCellVoltage) - epsilon))
     local averageVoltagePerCell = totalVoltage / estimatedCellCount
 
-    if averageVoltagePerCell >= minCellVoltage and averageVoltagePerCell <= maxCellVoltage then
+    if averageVoltagePerCell >= minCellVoltage and averageVoltagePerCell <= (maxCellVoltage + epsilon) then
       return averageVoltagePerCell, estimatedCellCount
     end
   end

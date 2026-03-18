@@ -450,16 +450,19 @@ local DIAG_ANTENNA_CARD_SPEC = {
 }
 
 -- ─── Battery card (P1) ────────────────────────────────────────────────────────
--- Displays average per-cell voltage and detected cell count inside the P1 slot.
--- Cell count uses: cells = floor(voltage / 4.2) + 1  (LiPo max 4.2 V/cell)
+-- Displays average per-cell voltage inside the P1 slot.
+-- Cell count uses a max-cell-voltage ceiling so exact full-charge pack values
+-- do not spill into the next pack size.
 local function drawBattery(slot, telemetry, state)
   if not slot then return end
   local packVoltage = (telemetry and telemetry.battery) or 0
+  local maxCellVoltage = 4.35
+  local epsilon = 0.0001
 
-  -- Auto-detect cell count from max-charge voltage (4.2 V/cell).
+  -- Auto-detect cell count from max-charge voltage.
   local cells = 1
   if packVoltage > 0 then
-    cells = math.max(1, math.floor(packVoltage / 4.2) + 1)
+    cells = math.max(1, math.ceil((packVoltage / maxCellVoltage) - epsilon))
   end
 
   local cellVoltage = 0
