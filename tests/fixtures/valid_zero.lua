@@ -11,5 +11,6 @@ return {
     ANT  = { value = 0 },   -- valid antenna index (ANT1)
   },
   flightMode = nil,
+  rssiStream = 80,
   time = 0,
 }

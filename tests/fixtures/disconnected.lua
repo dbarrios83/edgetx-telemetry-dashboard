@@ -10,5 +10,6 @@ return {
     Sats = { value = 0 },
   },
   flightMode = nil,
+  rssiStream = 0, -- EdgeTX TELEMETRY_STREAMING() is false: no link at all
   time = 0,
 }

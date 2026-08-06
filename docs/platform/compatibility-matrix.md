@@ -215,7 +215,61 @@ should extend to any future version/band-aware logic in Step 5: an ELRS
 firmware version or RF band this widget doesn't recognize must resolve
 to "unavailable," not to the nearest table it happens to match.
 
-## 7. Companion simulator verification profiles
+## 7. Connection detection
+
+**Status: implemented (Step 7, 2026-08-06).**
+
+The widget must not depend solely on ELRS-specific fields to decide
+whether telemetry is live — a model exposing only generic sensors
+(pack voltage, current, GPS, antenna RSSI) and no LQ/TX power/RFMD
+should still be detected as connected.
+
+The primary signal is EdgeTX's own `getRSSI()`. Its first return value
+is `0` unless the firmware's internal `TELEMETRY_STREAMING()` flag is
+true, for whichever telemetry protocol is actually in use — not just
+ELRS/CRSF. Sourced directly from EdgeTX firmware, not inferred:
+
+```c
+// radio/src/lua/api_general.cpp, luaGetRSSI (EdgeTX/edgetx)
+static int luaGetRSSI(lua_State * L)
+{
+  if (TELEMETRY_STREAMING())
+    lua_pushinteger(L, min((uint8_t)99, TELEMETRY_RSSI()));
+  else
+    lua_pushinteger(L, 0);
+  lua_pushinteger(L, g_model.rfAlarms.warning);
+  lua_pushinteger(L, g_model.rfAlarms.critical);
+  return 3;
+}
+```
+
+Note this returns three values (`rssi, alarm_low, alarm_crit`); only the
+first is used here, and it is a normalized value capped at 99 — not raw
+dBm, and not the same thing as the widget's own `rssi`/`rssi1`/`rssi2`
+display fields, which come from the `1RSS`/`2RSS`/`TRSS` sensors and
+must not be conflated with this connection-detection signal.
+
+**Rule:** `connected = getRSSI() > 0 OR linkQuality > 0 OR txPower > 0 OR
+packetRate > 0`. The ELRS-specific checks are kept as a fallback
+alongside `getRSSI()`, not replaced by it, in case `getRSSI()` is ever
+unavailable or behaves unexpectedly on a given firmware build —
+`getRSSI()` has been documented since EdgeTX 2.2.0, well within the 2.12+
+floor from Section 1, so this should rarely matter in practice.
+
+A genuinely critical LQ reading of exactly `0` is a valid, real
+telemetry value (see `evaluateLinkQuality` in `telemetry/state.lua`,
+which already classifies it CRITICAL rather than UNKNOWN) and must not
+be confused with "no telemetry at all" — `getRSSI()` and the LQ sensor
+are independent signals, so LQ=0 while `getRSSI() > 0` still resolves to
+connected.
+
+When disconnected, `packetRate`/`available.packetRate` are explicitly
+reset so a stale rate never renders; every renderer additionally gates
+on `telemetry.connected == true` before drawing any live value, so a
+reconnect never has an intermediate frame showing stale data from before
+the disconnect.
+
+## 8. Companion simulator verification profiles
 
 Manual/Step 11 regression should use, at minimum:
 

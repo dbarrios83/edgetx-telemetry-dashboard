@@ -380,15 +380,36 @@ local function readGpsValid()
   return type(getValue(id)) == "table"
 end
 
+-- EdgeTX's own getRSSI() is protocol-agnostic: its first return value is
+-- nonzero only while the firmware's internal TELEMETRY_STREAMING() flag
+-- is true, for whatever telemetry protocol/sensors are actually in use
+-- -- not just ELRS. Sourced from EdgeTX firmware
+-- (radio/src/lua/api_general.cpp, luaGetRSSI); see
+-- docs/platform/compatibility-matrix.md for the full citation. This is
+-- what lets a model exposing only generic sensors (VFAS/current/GPS/
+-- RSSI) and no ELRS-specific LQ/TxPower/RFMD be correctly detected as
+-- connected.
+local function isTelemetryStreaming()
+  if not getRSSI then
+    return false
+  end
+  local rssi = getRSSI()
+  return type(rssi) == "number" and rssi > 0
+end
+
 -- Base connection on live telemetry values, not just sensor presence.
 -- Sensor IDs remain available even when RX link drops, so availability flags
 -- alone can keep connected=true incorrectly.
 local function updateConnectionFlag()
+  local hasStreamingTelemetry = isTelemetryStreaming()
   local hasLQ = snapshot.available.linkQuality and snapshot.linkQuality > 0
   local hasTxPower = snapshot.available.txPower and snapshot.txPower > 0
   local hasPacketRate = snapshot.available.packetRate and snapshot.packetRate > 0
 
-  snapshot.connected = hasLQ or hasTxPower or hasPacketRate
+  -- getRSSI() is the primary, protocol-agnostic signal. The ELRS-specific
+  -- checks remain as a fallback in case getRSSI() is ever unavailable or
+  -- behaves unexpectedly on a given firmware build.
+  snapshot.connected = hasStreamingTelemetry or hasLQ or hasTxPower or hasPacketRate
 
   if not snapshot.connected then
     -- Prevent stale/invalid values from being rendered while disconnected.

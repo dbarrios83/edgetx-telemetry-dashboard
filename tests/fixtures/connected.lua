@@ -14,5 +14,6 @@ return {
     Capa   = { value = 450 },
   },
   flightMode = { 0, "ACRO" },
+  rssiStream = 75, -- EdgeTX TELEMETRY_STREAMING() is true on a healthy link
   time = 0,
 }

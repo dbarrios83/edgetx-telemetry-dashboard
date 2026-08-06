@@ -137,22 +137,90 @@ return function(t, mock, paths)
       end)
     end)
 
-    -- Documents the current baseline for the Step 7 gap: connection
-    -- detection only looks at LQ/TX power/packet rate today, so a model
-    -- exposing nothing but generic telemetry (voltage/current/GPS) is
-    -- currently reported as disconnected even though it has live data.
-    -- Step 7 ("Redesign telemetry connection detection") is expected to
-    -- change this assertion.
-    t.it("[Step 7 baseline] generic-only telemetry with no LQ/TxPower/RFMD is NOT yet treated as connected", function()
+    -- Step 7 fix: connection detection no longer depends solely on
+    -- ELRS-specific LQ/TX power/packet rate. EdgeTX's own getRSSI() is
+    -- nonzero whenever the firmware's TELEMETRY_STREAMING() flag is
+    -- true, for any protocol -- so a model exposing only generic
+    -- sensors (voltage/current/GPS) is correctly treated as connected.
+    t.it("connects via EdgeTX's protocol-agnostic getRSSI() even with no LQ/TxPower/RFMD", function()
       mock.withInstall({
         sensors = {
           VFAS = { value = 16.8 },
           Curr = { value = 5.0 },
           Sats = { value = 10 },
         },
+        rssiStream = 70,
+      }, function()
+        local read = paths.loadWidgetModule("telemetry/read.lua")
+        t.assertTrue(read.snapshot().connected)
+      end)
+    end)
+
+    t.it("stays disconnected when getRSSI() reports no stream and no ELRS signal is present either", function()
+      mock.withInstall({
+        sensors = {
+          VFAS = { value = 16.8 },
+          Curr = { value = 5.0 },
+        },
+        rssiStream = 0,
       }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
         t.assertFalse(read.snapshot().connected)
+      end)
+    end)
+
+    t.it("transitions from connected to disconnected as telemetry is lost across frames", function()
+      local fixture = {
+        sensors = { VFAS = { value = 16.8 }, RQly = { value = 95 } },
+        rssiStream = 80,
+      }
+      mock.withInstall(fixture, function()
+        local read = paths.loadWidgetModule("telemetry/read.lua")
+        t.assertTrue(read.snapshot().connected)
+
+        -- Link drops: both the ELRS signal and the streaming flag fall.
+        fixture.sensors.RQly.value = 0
+        fixture.rssiStream = 0
+        t.assertFalse(read.snapshot().connected)
+      end)
+    end)
+
+    t.it("restores values on reconnect without a stale intermediate read", function()
+      local fixture = {
+        sensors = { VFAS = { value = 16.8 }, RQly = { value = 0 } },
+        rssiStream = 0,
+      }
+      mock.withInstall(fixture, function()
+        local read = paths.loadWidgetModule("telemetry/read.lua")
+        t.assertFalse(read.snapshot().connected)
+
+        fixture.sensors.RQly.value = 95
+        fixture.rssiStream = 80
+        local reconnected = read.snapshot()
+        t.assertTrue(reconnected.connected)
+        t.assertEqual(reconnected.battery, 16.8)
+      end)
+    end)
+
+    t.it("a valid LQ=0 reading stays connected via getRSSI() and does not mask other live telemetry", function()
+      -- LQ genuinely at 0 (a real, critical reading) must not be
+      -- confused with "no telemetry at all" when the streaming flag
+      -- and other sensors show the link is actually still up.
+      mock.withInstall({
+        sensors = {
+          VFAS = { value = 14.5 },
+          RQly = { value = 0 },
+          Curr = { value = 3.0 },
+        },
+        rssiStream = 55,
+      }, function()
+        local read = paths.loadWidgetModule("telemetry/read.lua")
+        local snap = read.snapshot()
+        t.assertTrue(snap.connected)
+        t.assertTrue(snap.available.linkQuality)
+        t.assertEqual(snap.linkQuality, 0)
+        t.assertTrue(snap.available.current)
+        t.assertEqual(snap.current, 3.0)
       end)
     end)
   end)

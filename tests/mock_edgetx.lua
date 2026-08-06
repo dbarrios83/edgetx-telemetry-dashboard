@@ -19,6 +19,9 @@ local installedKeys = {}
 -- fixture.time: starting tick count for getTime()
 -- fixture.crsfIncoming: { { command = <num>, data = {...} }, ... } queue for crossfireTelemetryPop()
 -- fixture.bitmaps: { [path] = false } to simulate a missing icon file at that path
+-- fixture.rssiStream: value getRSSI()'s first return should report (0 or
+--   nil = EdgeTX's TELEMETRY_STREAMING() is false, i.e. no telemetry of
+--   any protocol is currently arriving; see radio/src/lua/api_general.cpp)
 function M.install(fixture)
   fixture = fixture or {}
   -- Intentionally the same table the caller passed in (not a copy): tests
@@ -75,6 +78,12 @@ function M.install(fixture)
     end
 
     return 0
+  end)
+
+  -- Real getRSSI() returns 3 values: rssi (0 if no link), alarm_low,
+  -- alarm_crit. Only the first is meaningful to production code here.
+  setGlobal("getRSSI", function()
+    return fixture.rssiStream or 0, 45, 42
   end)
 
   setGlobal("getFlightMode", function()

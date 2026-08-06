@@ -10,5 +10,6 @@ return {
     ["1RSS"] = { value = -70 },
   },
   flightMode = nil,
+  rssiStream = 60,
   time = 0,
 }

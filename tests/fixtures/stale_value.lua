@@ -11,5 +11,6 @@ return {
     RFMD = { value = 0 },
   },
   flightMode = nil,
+  rssiStream = 0, -- link is actually down; generic sensor values are stale
   time = 0,
 }
