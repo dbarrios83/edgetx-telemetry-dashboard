@@ -288,6 +288,32 @@ In practice, it groups into:
 1. Open SD card contents.
 2. Remove folder: `/WIDGETS/FPVDASH/`.
 
+## Development
+
+### Running Tests
+
+The widget's Lua modules have a desktop test harness under `tests/` that
+mocks the EdgeTX Lua API (`getFieldInfo`, `getValue`, `getFlightMode`,
+`getTime`, `lcd.*`, `Bitmap.open`, CRSF push/pop) so unit tests can run on
+any standard Lua 5.1-5.4 interpreter, without a radio or simulator.
+
+Install Lua (e.g. `winget install DEVCOM.Lua` on Windows, or
+`apt-get install lua5.4` on Linux), then from the repo root:
+
+```bash
+lua tests/run.lua
+```
+
+This syntax-checks every `.lua` file under `SCRIPTS/WIDGETS/FPVDASH` and
+runs every spec in `tests/spec/`, printing a pass/fail summary and exiting
+non-zero on failure. The same command runs in CI on every pull request
+(`.github/workflows/lua-tests.yml`).
+
+Some spec assertions are explicitly labeled `[Step N baseline]` — they lock
+in current, known-incomplete behavior (tracked in the project's
+Reliability & Compatibility plan) so that fixing it later is a deliberate,
+visible change to the test rather than a silent one.
+
 ## Additional Resources
 
 - EdgeTX Manual: https://manual.edgetx.org
