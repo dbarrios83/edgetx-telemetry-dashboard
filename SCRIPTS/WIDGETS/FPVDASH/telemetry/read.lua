@@ -55,6 +55,7 @@ local FIELD_SENSORS = {
   rssi2         = { "2RSS" },
   capacity      = { "Capa", "CAP" },
   activeAntenna = { "ANT" },
+  rsnr          = { "RSNR", "SNR" },
 }
 
 local PACKET_RATE_FROM_RFMD = {
@@ -106,6 +107,11 @@ local snapshot = {
   rssi2 = 0,
   capacity = 0,
   activeAntenna = 0,
+  rsnr = 0,
+
+  -- Whether the "GPS" sensor is reporting a real fix table (lat/lon),
+  -- as opposed to being absent or mid-acquisition. See readGpsValid().
+  gpsValid = false,
 
   -- Resolved by telemetry/battery.lua; nil until a connected snapshot
   -- has been evaluated. See M.snapshot() below.
@@ -126,6 +132,7 @@ local snapshot = {
     rssi2 = false,
     capacity = false,
     activeAntenna = false,
+    rsnr = false,
   },
 
   connected = false,
@@ -329,6 +336,21 @@ local function readExplicitCellCount()
   return count
 end
 
+-- A GPS sensor reports a real fix as a table (lat/lon); anything else
+-- (absent, or mid-acquisition on some FCs) is not a usable fix.
+local function readGpsValid()
+  if not getValue then
+    return false
+  end
+
+  local id = resolveId("GPS")
+  if id == false then
+    return false
+  end
+
+  return type(getValue(id)) == "table"
+end
+
 -- Base connection on live telemetry values, not just sensor presence.
 -- Sensor IDs remain available even when RX link drops, so availability flags
 -- alone can keep connected=true incorrectly.
@@ -369,6 +391,9 @@ function M.snapshot()
   assignNumeric("rssi2")
   assignNumeric("capacity")
   assignNumeric("activeAntenna")
+  assignNumeric("rsnr")
+
+  snapshot.gpsValid = readGpsValid()
 
   updateConnectionFlag()
 
@@ -401,6 +426,7 @@ local PROBE_NAMES = {
   "Sats", "SATS",
   "FM", "FMODE",
   "ANT", "Capa", "CAP",
+  "RSNR", "SNR", "GPS", "Cels",
 }
 
 function M.scanSensors()

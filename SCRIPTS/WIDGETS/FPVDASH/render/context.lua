@@ -201,19 +201,16 @@ toNumber = function(v)
   return nil
 end
 
-local function readValue(name)
-  if not getValue then
-    return nil
-  end
-  return getValue(name)
-end
-
-local function readValueFirst(names)
-  for i = 1, #names do
-    local v = readValue(names[i])
-    if v ~= nil and v ~= "" then
-      return v
-    end
+-- Returns telemetry[field] only when the normalized snapshot marks it
+-- available, nil otherwise. This is the one place this renderer touches
+-- telemetry data -- no direct getValue()/getFlightMode() calls here, so
+-- a sensor that doesn't exist on a given model can never be silently
+-- rendered as a valid zero (see telemetry/read.lua for how availability
+-- is actually resolved, including alias fallback and the negative-cache
+-- rescan).
+local function avail(telemetry, field)
+  if telemetry and telemetry.available and telemetry.available[field] then
+    return telemetry[field]
   end
   return nil
 end
@@ -288,15 +285,6 @@ local function formatSat(raw)
   return tostring(math.floor(n + 0.5))
 end
 
-local function hasValidGps()
-  if not getValue then
-    return false
-  end
-
-  local gpsValue = getValue("GPS")
-  return type(gpsValue) == "table"
-end
-
 local function formatAntenna(raw)
   local n = toNumber(raw)
   if n then
@@ -319,18 +307,13 @@ local function formatCapacity(raw)
   return tostring(math.floor(n + 0.5)) .. "mAh"
 end
 
+-- Flight-mode resolution (including the radio getFlightMode() fallback)
+-- lives entirely in telemetry/read.lua; this only formats the already-
+-- normalized string.
 local function formatFlightMode(raw)
-  if type(raw) == "string" and raw ~= "" then
+  if type(raw) == "string" and raw ~= "" and raw ~= "--" then
     return raw
   end
-
-  if getFlightMode then
-    local mode = getFlightMode()
-    if type(mode) == "string" and mode ~= "" then
-      return mode
-    end
-  end
-
   return "---"
 end
 
@@ -355,38 +338,19 @@ function M.draw(rect, telemetry, state, theme)
 
   local curr, packetRate, tpwr, rssi1, rssi2, sats, fm, rsnr, cap
   if connected then
-    curr = readValue("Curr")
-    tpwr = readValue("TPWR")
-    rssi1 = readValueFirst({ "1RSS", "RSSI" })
-    rssi2 = readValueFirst({ "2RSS", "RSSI2" })
-    sats = readValueFirst({ "Sats", "SATS", "SAT" })
-    fm = readValue("FM")
-    rsnr = readValueFirst({ "RSNR", "SNR" })
-    cap = readValueFirst({ "Capa", "CAP", "Capacity" })
-
-    if curr == nil and telemetry then curr = telemetry.current end
-    if telemetry and telemetry.available and telemetry.available.packetRate then
-      packetRate = telemetry.packetRate
-    end
-    if tpwr == nil and telemetry then tpwr = telemetry.txPower end
-    if telemetry then
-      local n1 = toNumber(rssi1)
-      local n2 = toNumber(rssi2)
-
-      if (rssi1 == nil or n1 == 0) and telemetry.available and telemetry.available.rssi1 then
-        rssi1 = telemetry.rssi1
-      elseif (rssi1 == nil or n1 == 0) and telemetry.available and telemetry.available.rssi then
-        rssi1 = telemetry.rssi
-      end
-
-      if (rssi2 == nil or n2 == 0) and telemetry.available and telemetry.available.rssi2 then
-        rssi2 = telemetry.rssi2
-      end
-    end
-    if sats == nil and telemetry then sats = telemetry.sats or telemetry.satellites end
-    if fm == nil and telemetry then fm = telemetry.flightMode end
-    if rssi2 == nil and telemetry then rssi2 = telemetry.rssi2 end
-    if cap == nil and telemetry then cap = telemetry.capacity end
+    curr = avail(telemetry, "current")
+    packetRate = avail(telemetry, "packetRate")
+    tpwr = avail(telemetry, "txPower")
+    -- Antenna-1 RSSI intentionally falls back to the generic `rssi`
+    -- field only, never to a bare "RSSI" sensor name -- that would read
+    -- EdgeTX's internal radio RSSI instead of telemetry RSSI (see
+    -- telemetry/read.lua's FIELD_SENSORS.rssi comment).
+    rssi1 = avail(telemetry, "rssi1") or avail(telemetry, "rssi")
+    rssi2 = avail(telemetry, "rssi2")
+    sats = avail(telemetry, "sats") or avail(telemetry, "satellites")
+    fm = avail(telemetry, "flightMode")
+    rsnr = avail(telemetry, "rsnr")
+    cap = avail(telemetry, "capacity")
   end
 
   local curText, rateText, pwrText, rssiText
@@ -394,7 +358,7 @@ function M.draw(rect, telemetry, state, theme)
   local satColor = _TEXT_COLOR
 
   if connected then
-    local gpsValid = hasValidGps()
+    local gpsValid = telemetry and telemetry.gpsValid == true
     local rssiBest = bestRssi(rssi1, rssi2)
 
     curText = formatCurrent(curr)
