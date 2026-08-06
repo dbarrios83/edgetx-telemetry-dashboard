@@ -3,6 +3,33 @@
 
 local M = {}
 
+-- Mirrors main.lua's own module-loading fallback order (see
+-- telemetry/read.lua's loadSiblingModule for the same pattern) so this
+-- file can load its sibling render/primitives.lua on both a real radio
+-- and the desktop test harness.
+local WIDGET_ROOTS = {
+  "/SCRIPTS/WIDGETS/FPVDASH/",
+  "/WIDGETS/FPVDASH/",
+  "SCRIPTS/WIDGETS/FPVDASH/",
+  "WIDGETS/FPVDASH/",
+  "",
+}
+
+local function loadSiblingModule(relativePath)
+  if not loadScript then
+    return nil
+  end
+  for i = 1, #WIDGET_ROOTS do
+    local chunk = loadScript(WIDGET_ROOTS[i] .. relativePath)
+    if chunk then
+      return chunk()
+    end
+  end
+  return nil
+end
+
+local primitivesModule = loadSiblingModule("render/primitives.lua")
+
 local _WHITE  = (type(WHITE) == "number") and WHITE or 0xFFFF
 local _GREEN  = (type(GREEN) == "number") and GREEN or _WHITE
 local _YELLOW = (type(YELLOW) == "number") and YELLOW or _WHITE
@@ -107,59 +134,20 @@ local _TEXT_COLOR = _WHITE
 local _TEXT_SHADOW_COLOR = _BLACK
 local _LIGHT_TEXT_SHADOW = _WHITE
 
+-- Shadow color here is theme-aware (see _TEXT_SHADOW_COLOR, set from
+-- theme.isLight in M.draw()) -- deliberately different from render/
+-- context.lua's/footer.lua's/timers.lua's simpler heuristic; see
+-- render/primitives.lua's header comment for why that's preserved
+-- per-renderer rather than unified.
 local function drawShadowText(x, y, text, size, color)
-  if not lcd or type(lcd.drawText) ~= "function" then
-    return
-  end
-
-  local txtColor = (type(color) == "number") and color or _WHITE
   local shadowColor = (type(_TEXT_SHADOW_COLOR) == "number") and _TEXT_SHADOW_COLOR or _BLACK
-
-  if type(TEXT_COLOR) == "number" and type(lcd.setColor) == "function" then
-    lcd.setColor(TEXT_COLOR, shadowColor)
-    lcd.drawText(x + 1, y + 1, text, size)
-
-    lcd.setColor(TEXT_COLOR, txtColor)
-    lcd.drawText(x, y, text, size)
-    return
-  end
-
-  if type(CUSTOM_COLOR) == "number" and type(lcd.setColor) == "function" then
-    lcd.setColor(CUSTOM_COLOR, shadowColor)
-    lcd.drawText(x + 1, y + 1, text, size + CUSTOM_COLOR)
-
-    lcd.setColor(CUSTOM_COLOR, txtColor)
-    lcd.drawText(x, y, text, size + CUSTOM_COLOR)
-    return
-  end
-
-  local okShadow = pcall(lcd.drawText, x + 1, y + 1, text, size, shadowColor)
-  if not okShadow then
-    lcd.drawText(x + 1, y + 1, text, size)
-  end
-
-  local okText = pcall(lcd.drawText, x, y, text, size, txtColor)
-  if not okText then
-    lcd.drawText(x, y, text, size)
+  if primitivesModule and primitivesModule.drawShadowText then
+    primitivesModule.drawShadowText(x, y, text, size, color, shadowColor)
   end
 end
 
-local function openBitmapFromCandidates(roots, names)
-  if not Bitmap then
-    return nil
-  end
-
-  for i = 1, #names do
-    for j = 1, #roots do
-      local bm = Bitmap.open(roots[j] .. names[i])
-      if bm then
-        return bm
-      end
-    end
-  end
-
-  return nil
-end
+local openBitmapFromCandidates = (primitivesModule and primitivesModule.openBitmapFromCandidates)
+  or function() return nil end
 
 local function ensureIconsLoaded(theme)
   if _iconsLoaded then return end
@@ -231,29 +219,7 @@ local function clamp(v, lo, hi)
   return v
 end
 
-local function toNumber(v)
-  if type(v) == "number" then
-    return v
-  end
-
-  if type(v) == "table" then
-    if type(v.value) == "number" then
-      return v.value
-    end
-    if type(v.val) == "number" then
-      return v.val
-    end
-  end
-
-  if type(v) == "string" then
-    local n = tonumber(v:match("%-?%d+%.?%d*"))
-    if n then
-      return n
-    end
-  end
-
-  return nil
-end
+local toNumber = (primitivesModule and primitivesModule.toNumber) or function() return nil end
 
 local function normalizeStickValue(v)
   if v == nil then

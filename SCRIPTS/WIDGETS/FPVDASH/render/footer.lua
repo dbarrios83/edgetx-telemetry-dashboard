@@ -4,6 +4,33 @@
 
 local M = {}
 
+-- Mirrors main.lua's own module-loading fallback order (see
+-- telemetry/read.lua's loadSiblingModule for the same pattern) so this
+-- file can load its sibling render/primitives.lua on both a real radio
+-- and the desktop test harness.
+local WIDGET_ROOTS = {
+  "/SCRIPTS/WIDGETS/FPVDASH/",
+  "/WIDGETS/FPVDASH/",
+  "SCRIPTS/WIDGETS/FPVDASH/",
+  "WIDGETS/FPVDASH/",
+  "",
+}
+
+local function loadSiblingModule(relativePath)
+  if not loadScript then
+    return nil
+  end
+  for i = 1, #WIDGET_ROOTS do
+    local chunk = loadScript(WIDGET_ROOTS[i] .. relativePath)
+    if chunk then
+      return chunk()
+    end
+  end
+  return nil
+end
+
+local primitivesModule = loadSiblingModule("render/primitives.lua")
+
 local _WHITE   = (type(WHITE)   == "number") and WHITE   or 0xFFFF
 local _BLACK   = 0x0000
 local _SMLSIZE = (type(SMLSIZE) == "number") and SMLSIZE or 0
@@ -37,38 +64,15 @@ local function resolveEdgeTxVersion()
   return _edgeTxVersionCached
 end
 
+-- Shadow color here is a simple txtColor-based heuristic -- deliberately
+-- different from render/sticks.lua's/topbar.lua's theme-aware
+-- _TEXT_SHADOW_COLOR; see render/primitives.lua's header comment for why
+-- that's preserved per-renderer rather than unified.
 local function drawShadowText(x, y, text, size, color)
-  if not lcd or type(lcd.drawText) ~= "function" then
-    return
-  end
-
   local txtColor = (type(color) == "number") and color or _WHITE
   local shadowColor = (txtColor == _WHITE) and _BLACK or _WHITE
-
-  if type(TEXT_COLOR) == "number" and type(lcd.setColor) == "function" then
-    lcd.setColor(TEXT_COLOR, shadowColor)
-    lcd.drawText(x + 1, y + 1, text, size)
-    lcd.setColor(TEXT_COLOR, txtColor)
-    lcd.drawText(x, y, text, size)
-    return
-  end
-
-  if type(CUSTOM_COLOR) == "number" and type(lcd.setColor) == "function" then
-    lcd.setColor(CUSTOM_COLOR, shadowColor)
-    lcd.drawText(x + 1, y + 1, text, size + CUSTOM_COLOR)
-    lcd.setColor(CUSTOM_COLOR, txtColor)
-    lcd.drawText(x, y, text, size + CUSTOM_COLOR)
-    return
-  end
-
-  local okShadow = pcall(lcd.drawText, x + 1, y + 1, text, size, shadowColor)
-  if not okShadow then
-    lcd.drawText(x + 1, y + 1, text, size)
-  end
-
-  local okText = pcall(lcd.drawText, x, y, text, size, txtColor)
-  if not okText then
-    lcd.drawText(x, y, text, size)
+  if primitivesModule and primitivesModule.drawShadowText then
+    primitivesModule.drawShadowText(x, y, text, size, color, shadowColor)
   end
 end
 
