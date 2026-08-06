@@ -149,6 +149,7 @@ Rows below can only be exercised on the real-radio smoke test.
 | 3 | Sensor present, genuinely reads zero | `Curr` discovered, reads exactly 0A (idle) | Current card shows `0.0A` as a real value, distinct from case 2 | |
 | 4 | RSNR falls back to SNR | Discover `SNR` but not `RSNR` | RSNR card still populates | |
 | 5 | No GPS fix | `GPS` sensor not discovered or reports no fix | Satellites card shows `N/A`, regardless of any `Sats` reading present | |
+| 6 | Battery sensor discovered but reads exactly 0V | Discover `RxBt`, value `0` | RX battery shows `--.--V` **with no battery icon at all** (not a green/"ok" icon) | Fixed `2c21956`, re-verify |
 
 ## 6. Timers and footer fallback
 
@@ -185,7 +186,9 @@ review used.
 
 | Finding | Section / row | Severity | Status |
 |---|---|---|---|
-| _(none logged yet)_ | | | |
+| RFMD/ELRS version never resolves in simulator (no real RF module to answer the CRSF device-info handshake) | Section 4 | N/A | Confirmed expected — designed fallback (bare `ELRS`, placeholder RFMD) working correctly, not a defect. Checklist updated. |
+| LQ=0 disconnects the whole widget | Section 2, row 4 (now retired) | N/A | Confirmed correct EdgeTX behavior for CRSF — `telemetryStreaming` is driven by the same value as LQ in `radio/src/telemetry/crossfire.cpp`. Not a defect. compatibility-matrix.md Section 7 corrected. |
+| RX battery icon shows green/"ok" when voltage is unknown (e.g. a discovered sensor reading exactly 0V), contradicting the `--.--V` placeholder text | Section 5 (sensor alias / valid-zero cases) | **P1** — safety-relevant indicator showing a false-positive "battery fine" signal | **Fixed.** `render/sticks.lua`'s `batteryIconKey()` now omits the icon entirely when voltage is unresolved, matching the placeholder text. Commit `2c21956`. Predates Step 3; not caught earlier because no prior test inspected icon selection, only text. |
 
 ## Sign-off
 
