@@ -269,7 +269,66 @@ on `telemetry.connected == true` before drawing any live value, so a
 reconnect never has an intermediate frame showing stale data from before
 the disconnect.
 
-## 8. Companion simulator verification profiles
+## 8. Widget and option metadata
+
+**Status: implemented (Step 8, 2026-08-06).**
+
+The original review flagged widget/option names as exceeding a documented
+EdgeTX limit. Checking the actual color-LCD firmware source before
+acting on that (`radio/src/lua/lua_widget_factory.cpp`'s
+`parseOptionDefinitions`, `radio/src/gui/colorlcd/mainview/widget.h`'s
+`WidgetOption::name`, and the persistence layer in `topbar.cpp`/
+`layout.cpp`) found no hard length limit: option names are read via
+`luaL_checkstring` with no truncation, `WidgetOption::name` is a
+`const char *`, and persisted widget names use `std::string`. This
+appears to not hold for the current EdgeTX 2.12+ color-LCD firmware this
+project targets — it may reflect older/monochrome-radio behavior, or
+simply wasn't verified against source when the finding was written.
+
+`transpLevel` (11 characters) was still renamed to `transpLvl` (9
+characters) as cheap, harmless defensive hygiene matching the original
+finding's intent, even without a confirmed hard requirement. Renaming an
+*option* name is safe because EdgeTX persists option values positionally
+(`WidgetPersistentData.options[i]`, a plain array), not by name.
+
+The widget's own registered `name` ("Telemetry Dashboard", 20
+characters) was deliberately left unchanged. Unlike option names, the
+widget name **is** used as a persistent lookup key — `topbar.cpp`/
+`layout.cpp` store `factory->getName()` into each configured zone, and
+matching it back to a factory on load is presumably name-based. Renaming
+it would risk breaking every existing user's already-configured
+screen (the zone would no longer resolve to this widget) for a length
+constraint that could not be confirmed to exist.
+
+The real, confirmed bug in this area was the transparency-value mapping
+(Section 9 below), not name length.
+
+## 9. Transparency-value mapping
+
+**Status: implemented (Step 8, 2026-08-06).**
+
+EdgeTX exposes `transpLvl` as one of two option types depending on the
+firmware build:
+
+- **Choice/Combo** (`COMBO`/`CHOICE` defined): the settings screen's
+  `Choice` control is 0-based internally, but reads/writes the stored
+  value via `getUnsignedValue(optIdx) - 1`
+  (`radio/src/gui/colorlcd/mainview/widget_settings.cpp`) — so the value
+  Lua actually receives is **1-based** (1..4), matching this widget's
+  choice labels `"1".."4"`.
+- **Plain `VALUE`** (older/other builds without `COMBO`/`CHOICE`):
+  declared here with `min=0, max=3`, so it is genuinely **0-based**.
+
+The old code tried to infer which convention applied from the raw
+number's range alone (checking `1..4` before `0..3`), which silently
+misread the 0-based `VALUE` option through the 1-based interpretation —
+level 12 (index 3 in `VALUE` mode) was unreachable, and level 6 was
+reachable from two different raw inputs. The fix branches on
+`OPTION_COMBO` (already known at load time, no guessing) to select the
+correct convention. All four levels are now individually reachable in
+each mode; see `tests/spec/main_spec.lua`.
+
+## 10. Companion simulator verification profiles
 
 Manual/Step 11 regression should use, at minimum:
 

@@ -52,12 +52,12 @@ local WIDGET_OPTIONS
 if OPTION_COMBO then
   WIDGET_OPTIONS = {
     { "darkTheme", BOOL, 1 },
-    { "transpLevel", OPTION_COMBO, 1, { "1","2","3","4" } },
+    { "transpLvl", OPTION_COMBO, 1, { "1","2","3","4" } },
   }
 else
   WIDGET_OPTIONS = {
     { "darkTheme", BOOL, 1 },
-    { "transpLevel", VALUE, 1, 0, 3 },
+    { "transpLvl", VALUE, 1, 0, 3 },
   }
 end
 
@@ -65,6 +65,15 @@ end
 -- Transparency resolver
 --------------------------------------------------
 
+-- EdgeTX stores a Choice/Combo option's value 1-based: the settings
+-- screen's Choice control is 0-based internally, but reads/writes it via
+-- `getUnsignedValue(optIdx) - 1` (radio/src/gui/colorlcd/mainview/
+-- widget_settings.cpp), so Lua receives 1..N -- matching our choice
+-- labels "1".."4". A plain VALUE option, declared here with min=0, is
+-- genuinely 0-based. These two conventions must not be guessed from the
+-- raw number's range (the old code tried 1..4 first, which silently
+-- misread the VALUE option's 0-based range) -- the already-known
+-- OPTION_COMBO flag says which convention actually applies.
 local function resolveTransparencyValue(raw)
 
   local v = raw
@@ -78,22 +87,22 @@ local function resolveTransparencyValue(raw)
   end
 
   if type(v) ~= "number" then
-    return 8
+    return TRANSP_VALUES[1]
   end
 
   local n = math.floor(v + 0.5)
 
-  -- user values (1..4)
-  if n >= 1 and n <= 4 then
-    return TRANSP_VALUES[n]
+  if OPTION_COMBO then
+    if n >= 1 and n <= 4 then
+      return TRANSP_VALUES[n]
+    end
+  else
+    if n >= 0 and n <= 3 then
+      return TRANSP_VALUES[n + 1]
+    end
   end
 
-  -- combo index (0..3)
-  if n >= 0 and n <= 3 then
-    return TRANSP_VALUES[n + 1]
-  end
-
-  return 8
+  return TRANSP_VALUES[1]
 end
 
 --------------------------------------------------
@@ -108,7 +117,7 @@ local function resolveTheme(options)
     isDark = false
   end
 
-  local transparency_value = resolveTransparencyValue(options and options.transpLevel or 1)
+  local transparency_value = resolveTransparencyValue(options and options.transpLvl or 1)
 
   return {
     isLight = not isDark,

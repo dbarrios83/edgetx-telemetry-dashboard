@@ -56,8 +56,10 @@ This guide explains how to install and configure the `FPVDASH` widget from this 
 The widget currently provides these options:
 1. `darkTheme` (`BOOL`):
 	 `On` = dark mode, `Off` = light mode.
-2. `transpLevel` (`COMBO` where supported):
-	 Controls section overlay transparency.
+2. `transpLvl` (`COMBO`/`Choice` where supported, plain numeric otherwise):
+	 Controls section overlay transparency. Four levels, selected as "1"-"4"
+	 (Choice) or 0-3 (plain numeric) depending on what your EdgeTX build
+	 exposes -- both resolve to the same four transparency levels.
 
 ![Widget Settings](docs/img/widget_setting.png)
 

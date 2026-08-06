@@ -169,7 +169,13 @@ function M.install(fixture)
   setGlobal("SMLSIZE", 0)
   setGlobal("BOOL", 1)
   setGlobal("VALUE", 2)
-  setGlobal("COMBO", 3)
+  -- fixture.disableCombo: simulates an EdgeTX build exposing neither
+  -- COMBO nor CHOICE, so a widget's own `type(COMBO) == "number" or
+  -- type(CHOICE) == "number"` detection falls back to a plain VALUE
+  -- option -- see tests/spec/main_spec.lua.
+  if not fixture.disableCombo then
+    setGlobal("COMBO", 3)
+  end
 
   return M
 end
