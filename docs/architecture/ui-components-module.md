@@ -1,5 +1,14 @@
 # UI Components Module
 
+> **Note (Step 10, 2026-08-06):** this is the original pre-implementation
+> design document. `render/cards.lua` (the "Telemetry Cards" component
+> described below) was deleted in Step 9 as dead code — it was loaded
+> but never called. `render/context.lua` is the actual, live telemetry
+> grid renderer; `render/timers.lua` and `render/footer.lua` were also
+> added and aren't reflected below. See the Reliability & Compatibility
+> plan's Step 9 for why, and the actual source under
+> `SCRIPTS/WIDGETS/FPVDASH/` for current ground truth.
+
 ## 1. Goal
 Define the reusable UI components module used by the telemetry dashboard widget.
 
@@ -19,12 +28,14 @@ These components map directly to the behavior and structure defined in:
 - [docs/ui/telemetry-cards.md](../ui/telemetry-cards.md)
 
 ## 3. Runtime Module Paths
-Planned runtime renderer modules:
+Actual runtime renderer modules:
 
 ```text
 SCRIPTS/WIDGETS/FPVDASH/render/topbar.lua
 SCRIPTS/WIDGETS/FPVDASH/render/sticks.lua
-SCRIPTS/WIDGETS/FPVDASH/render/cards.lua
+SCRIPTS/WIDGETS/FPVDASH/render/context.lua
+SCRIPTS/WIDGETS/FPVDASH/render/timers.lua
+SCRIPTS/WIDGETS/FPVDASH/render/footer.lua
 ```
 
 Each renderer is responsible for drawing only its own component area.
@@ -52,17 +63,24 @@ Inputs:
 - stick-monitor bounds from layout module
 - per-frame stick input snapshot
 
-### 4.3 Card Renderer (`render/cards.lua`)
+### 4.3 Context Grid Renderer (`render/context.lua`)
 Responsibilities:
-- draw primary telemetry cards
-- draw context telemetry row
-- draw optional diagnostic cards when available
+- draw the 2x4 context telemetry grid (current, packet rate, TX power,
+  RSSI, satellites, flight mode, RSNR, consumed capacity) directly
+  within its given region — no separate slot-mapping layer
 - apply telemetry state styling and icon behavior
+- distinguish an undiscovered sensor from a genuine zero reading via the
+  normalized snapshot's `available` map (never reads sensors directly)
 
 Inputs:
-- card region bounds and slot mappings from layout modules
+- primary-grid region bounds from the layout module
 - per-frame telemetry snapshot
 - evaluated telemetry states
+
+### 4.4 Timers and Footer Renderers (`render/timers.lua`, `render/footer.lua`)
+Responsibilities:
+- draw the three-timer row and the ELRS/EdgeTX version footer
+  (footer only on the taller 480x320 display class)
 
 ## 5. Renderer Contract
 Renderers consume prepared data and layout bounds and should not read sensors directly.
@@ -70,17 +88,13 @@ Renderers consume prepared data and layout bounds and should not read sensors di
 Base renderer pattern:
 
 ```lua
-draw(rect, data)
+draw(rect, telemetry, state, theme)
 ```
 
-Renderers may also expose specialized functions when a component renders multiple regions.
-
-Example:
+Example (actual signature, `render/context.lua`):
 
 ```lua
-cards.drawPrimary(rect, telemetry, state)
-cards.drawContext(rect, telemetry, state)
-cards.drawOptional(rect, telemetry, state)
+context.draw(layout.primaryGrid, telemetry, state, theme)
 ```
 
 All renderer functions must receive precomputed layout bounds and prepared data from the widget orchestrator.
@@ -100,9 +114,9 @@ The UI components module must not:
 Within `refresh()`, component rendering order is:
 1. top bar
 2. stick monitor
-3. primary telemetry cards
-4. context telemetry cards
-5. optional diagnostics
+3. context telemetry grid
+4. timers row
+5. footer (480x320 display class only)
 
 This order preserves hierarchy and prevents overlap artifacts.
 

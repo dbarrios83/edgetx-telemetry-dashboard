@@ -86,6 +86,36 @@ If the screen is not in `App Mode`, the widget may not load or may not render co
 - Timers row
 - Footer with ELRS version and EdgeTX version
 
+## Behavior Notes
+
+These notes explain safety-relevant or otherwise non-obvious widget
+behavior. Full technical detail and sourcing:
+[docs/platform/compatibility-matrix.md](docs/platform/compatibility-matrix.md).
+
+**Battery cell count.** The widget infers cell count from pack voltage
+when the flight controller doesn't report it explicitly, and *never
+lets the inferred count decrease while the same pack stays connected*
+— a draining 6S pack cannot be mistaken for a smaller, "full" pack
+mid-flight. The count only resets when telemetry disconnects and
+reconnects (a new connection may be a different pack).
+
+**Connection status.** "Connected" is based primarily on EdgeTX's own
+telemetry-streaming signal (`getRSSI()`), not on any single
+ExpressLRS-specific field — so a model reporting only generic sensors
+(pack voltage, current, GPS, RSSI) is correctly shown as connected even
+without link-quality or packet-rate telemetry.
+
+**Missing vs. zero readings.** A sensor that isn't discovered on your
+model shows as a placeholder (`--`, `N/A`), never as a fabricated `0`.
+If a card looks blank, re-run **Discover new sensors** rather than
+assuming the reading is genuinely zero.
+
+**RFMD / packet rate.** See the RFMD metric below — packet rate
+requires the transmitter's ExpressLRS version to be read from CRSF
+device-info first, and only decodes rates from the table matching that
+specific version (3.x or 4.x); an unrecognized version or RFMD value
+never produces a guessed rate.
+
 ## Context Telemetry Metrics
 
 The context section displays secondary telemetry used for pre-flight validation and post-flight analysis.
@@ -190,10 +220,13 @@ Why it matters:
 Determines GPS reliability for functions such as return-to-home and position hold.
 
 Typical values:
-- 0: no lock
-- 1-4: poor
-- 5-7: usable
-- 8+: good
+- 0-4: critical (no reliable fix — colored red)
+- 5-7: usable (colored yellow)
+- 8+: good (colored green)
+
+These are the same thresholds the widget itself uses to color the card
+(`telemetry/state.lua`'s `evaluateSatellites` and
+`render/context.lua`'s `satStateColor`).
 
 Special cases:
 - `N/A`: no telemetry or GPS not detected
@@ -292,6 +325,16 @@ In practice, it groups into:
 	Use **Reset telemetry** from the model telemetry page.
 - Version text or icons not updating:
 	Power-cycle the radio after replacing widget files.
+- Verifying a change before flashing a real radio:
+	`lua tests/run.lua` (see [Running Tests](#running-tests) below) checks
+	the widget's logic — telemetry decoding, thresholds, fallback
+	behavior — but not layout or rendering. For a visual check, load the
+	widget in **EdgeTX Companion**'s simulator using the
+	`RadioMaster TX16S` (480x272) and `RadioMaster TX15` (480x320) radio
+	profiles, matching the two supported display classes. See
+	[docs/platform/compatibility-matrix.md](docs/platform/compatibility-matrix.md)
+	Section 8 for the full simulator profile list and EdgeTX version
+	notes (TX15 requires Companion built against EdgeTX 2.12+).
 
 ## Uninstallation
 

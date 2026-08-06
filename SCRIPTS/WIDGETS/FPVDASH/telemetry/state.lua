@@ -63,14 +63,20 @@ function M.evaluateRSSI(rssi, isAvailable)
 end
 
 -- Evaluate satellite count state.
--- Thresholds: OK >= 10, WARNING 6–9, CRITICAL < 6
+-- Thresholds: OK >= 8, WARNING 5-7, CRITICAL < 5
+-- Matches render/context.lua's satStateColor exactly (Step 10: previously
+-- state.lua used OK>=10/WARNING 6-9/CRITICAL<6, disagreeing with both
+-- context.lua's on-screen coloring and the README's documented tiers).
+-- This policy was chosen over state.lua's old stricter numbers because
+-- context.lua is what's actually rendered today; aligning state.lua to
+-- it changes no visible behavior, whereas the reverse would have.
 function M.evaluateSatellites(sats, isAvailable)
   if not isAvailable or sats == nil then
     return M.UNKNOWN
   end
-  if sats >= 10 then
+  if sats >= 8 then
     return M.OK
-  elseif sats >= 6 then
+  elseif sats >= 5 then
     return M.WARNING
   else
     return M.CRITICAL

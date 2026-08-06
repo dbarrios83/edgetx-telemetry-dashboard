@@ -1,5 +1,17 @@
 # Lua Widget Architecture
 
+> **Note (Step 10, 2026-08-06):** this is the original pre-implementation
+> design document. The implementation evolved during development: the
+> planned `layout/slots.lua` + `render/cards.lua` slot/card rendering
+> path was superseded by `render/context.lua`, which draws the telemetry
+> grid directly from `layout.lua`'s regions without a separate slot
+> layer, and both files were deleted as dead code once confirmed unused
+> (see the project's Reliability & Compatibility plan, Step 9).
+> `render/timers.lua` and `render/footer.lua` were also added and are
+> not reflected below. Sections 5, 6.3, 6.4, and 8.1 have been updated
+> to match; for anything else, the actual source under
+> `SCRIPTS/WIDGETS/FPVDASH/` is the ground truth, not this document.
+
 ## 1. Goal
 Define the overall Lua architecture for the EdgeTX telemetry dashboard widget.
 
@@ -65,7 +77,7 @@ All user-visible dashboard rendering occurs in `refresh()`.
 - avoid frequent allocations and heavy drawing
 
 ## 5. Module Organization
-Proposed module structure under the runtime widget directory:
+Actual module structure under the runtime widget directory:
 
 ```text
 SCRIPTS/WIDGETS/FPVDASH/
@@ -73,19 +85,25 @@ SCRIPTS/WIDGETS/FPVDASH/
 
   layout/
     layout.lua
-    slots.lua
 
   render/
     topbar.lua
     sticks.lua
-    cards.lua
+    context.lua
+    timers.lua
+    footer.lua
 
   telemetry/
     read.lua
     state.lua
+    battery.lua
+    elrs.lua
 ```
 
 This structure isolates responsibilities and allows focused testing by module.
+There is no separate slot-definition module: `layout.lua` outputs the
+regions renderers draw into directly, and `context.lua` lays out its own
+2x4 metric grid within the `primaryGrid` region it's given.
 
 ## 6. Module Responsibilities
 
@@ -114,48 +132,23 @@ Responsibilities:
 
 The layout module outputs geometry only and does not draw.
 
-### 6.3 Slot Definition Module
-Files:
-
-    SCRIPTS/WIDGETS/FPVDASH/layout/slots.lua
-
-Responsibilities:
-- map telemetry metrics to fixed slot identifiers
-- enforce stable placement when optional sensors are missing
-
-Primary slot mapping:
-
-```text
-P1 -> Battery
-P2 -> Link Quality
-P3 -> Packet Rate
-P4 -> RSSI
-P5 -> Current
-P6 -> Satellites
-```
-
-Context slots:
-
-```text
-C1 -> TX Power
-C2 -> Flight Mode
-```
-
-Optional diagnostic slots:
-
-```text
-O1 -> RSSI1
-O2 -> RSSI2
-O3 -> Capacity
-O4 -> Active Antenna
-```
+### 6.3 Slot Definition Module (removed — see note at top)
+The originally planned slot-mapping module (`layout/slots.lua`, with
+`P1`-`P6`/`C1`-`C2`/`O1`-`O4` slot identifiers) was deleted in Step 9 as
+dead code: its only consumer was `render/cards.lua`, which was itself
+loaded but never called from `refresh()`. `render/context.lua` draws
+its 8-metric grid (current, packet rate, TX power, RSSI, satellites,
+flight mode, RSNR, consumed capacity) directly within the `primaryGrid`
+region `layout.lua` provides, with no intermediate slot layer.
 
 ### 6.4 Rendering Modules
 Files:
 
     SCRIPTS/WIDGETS/FPVDASH/render/topbar.lua
     SCRIPTS/WIDGETS/FPVDASH/render/sticks.lua
-    SCRIPTS/WIDGETS/FPVDASH/render/cards.lua
+    SCRIPTS/WIDGETS/FPVDASH/render/context.lua
+    SCRIPTS/WIDGETS/FPVDASH/render/timers.lua
+    SCRIPTS/WIDGETS/FPVDASH/render/footer.lua
 
 Responsibilities:
 - draw UI elements inside provided bounds
@@ -167,17 +160,13 @@ Renderer contract:
 Base renderer pattern:
 
 ```lua
-draw(rect, data)
+draw(rect, telemetry, state, theme)
 ```
 
-Renderers may also expose specialized functions when a component renders multiple regions.
-
-Example:
+Example (actual signatures, `SCRIPTS/WIDGETS/FPVDASH/render/context.lua`):
 
 ```lua
-cards.drawPrimary(rect, telemetry, state)
-cards.drawContext(rect, telemetry, state)
-cards.drawOptional(rect, telemetry, state)
+context.draw(layout.primaryGrid, telemetry, state, theme)
 ```
 
 All renderer functions must receive precomputed layout bounds and prepared data from the widget orchestrator.
@@ -267,16 +256,16 @@ Pseudo-flow:
 
 ```lua
 function refresh(widget, event, touchState)
-    local telemetry = telemetryRead.snapshot()
+    local telemetry = telemetryRead.snapshot(elrsMajorVersion)
     local state = telemetryState.evaluate(telemetry)
 
-    local regions = layout.compute(widget.zone)
+    local layout = layoutModule.compute(widget.zone)
 
-    topbar.draw(regions.topbar, telemetry)
-    sticks.draw(regions.sticks, telemetry)
-    cards.drawPrimary(regions.primary, telemetry, state)
-    cards.drawContext(regions.context, telemetry, state)
-    cards.drawOptional(regions.optional, telemetry, state)
+    topbarRenderer.draw(layout.topBar, telemetry, state, theme)
+    sticksRenderer.draw(layout.stickMonitor, telemetry, state, theme)
+    contextRenderer.draw(layout.primaryGrid, telemetry, state, theme)
+    timersRenderer.draw(layout.contextRow, telemetry, state, theme)
+    footerRenderer.draw(layout.footerRow, telemetry, state, theme)
 end
 ```
 

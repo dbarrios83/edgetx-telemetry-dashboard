@@ -55,14 +55,21 @@ return function(t, mock, paths)
   end)
 
   t.describe("telemetry/state.lua satellites", function()
-    t.it("reports OK at 10+", function()
+    -- Thresholds (Step 10): OK >= 8, WARNING 5-7, CRITICAL < 5. Matches
+    -- render/context.lua's satStateColor and the README's documented
+    -- tiers -- previously state.lua alone used OK>=10/WARNING 6-9/
+    -- CRITICAL<6, disagreeing with both.
+    t.it("reports OK at the 8-satellite boundary and above", function()
+      t.assertEqual(state.evaluateSatellites(8, true), state.OK)
       t.assertEqual(state.evaluateSatellites(12, true), state.OK)
     end)
-    t.it("reports WARNING between 6 and 9", function()
+    t.it("reports WARNING from 5 up to (not including) 8", function()
+      t.assertEqual(state.evaluateSatellites(5, true), state.WARNING)
       t.assertEqual(state.evaluateSatellites(7, true), state.WARNING)
     end)
-    t.it("reports CRITICAL below 6", function()
-      t.assertEqual(state.evaluateSatellites(3, true), state.CRITICAL)
+    t.it("reports CRITICAL below 5", function()
+      t.assertEqual(state.evaluateSatellites(4, true), state.CRITICAL)
+      t.assertEqual(state.evaluateSatellites(0, true), state.CRITICAL)
     end)
     t.it("reports UNKNOWN when unavailable", function()
       t.assertEqual(state.evaluateSatellites(12, false), state.UNKNOWN)
