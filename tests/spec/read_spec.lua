@@ -147,6 +147,82 @@ return function(t, mock, paths)
     end)
   end)
 
+  t.describe("telemetry/read.lua battery cell resolution", function()
+    t.it("uses the Cels sensor as the explicit cell count when present", function()
+      mock.withInstall({
+        sensors = {
+          VFAS = { value = 16.8 },
+          RQly = { value = 95 },
+          Cels = { value = { 4.20, 4.20, 4.20, 4.20 } }, -- explicit 4S
+        },
+      }, function()
+        local read = paths.loadWidgetModule("telemetry/read.lua")
+        local snap = read.snapshot()
+        t.assertEqual(snap.batteryCells, 4)
+        t.assertNear(snap.batteryCellVoltage, 4.20, 0.01)
+      end)
+    end)
+
+    t.it("falls back to voltage-based inference when Cels is not discovered", function()
+      mock.withInstall({
+        sensors = {
+          VFAS = { value = 16.8 },
+          RQly = { value = 95 },
+        },
+      }, function()
+        local read = paths.loadWidgetModule("telemetry/read.lua")
+        local snap = read.snapshot()
+        t.assertEqual(snap.batteryCells, 4)
+      end)
+    end)
+
+    t.it("keeps a 6S pack latched at 6S as it drains across frames, never reporting it as full", function()
+      local fixture = {
+        sensors = {
+          VFAS = { value = 25.0 }, -- 6S near-full
+          RQly = { value = 95 },
+        },
+      }
+      mock.withInstall(fixture, function()
+        local read = paths.loadWidgetModule("telemetry/read.lua")
+        local first = read.snapshot()
+        t.assertEqual(first.batteryCells, 6)
+
+        -- Pack drains mid-flight; the link stays up across frames.
+        fixture.sensors.VFAS.value = 21.0
+        local drained = read.snapshot()
+        t.assertEqual(drained.batteryCells, 6)
+        t.assertNear(drained.batteryCellVoltage, 3.50, 0.01)
+      end)
+    end)
+
+    t.it("resets the latch on disconnect so a newly connected pack is not pinned to the previous one", function()
+      local fixture = {
+        sensors = {
+          VFAS = { value = 25.0 },
+          RQly = { value = 95 },
+        },
+      }
+      mock.withInstall(fixture, function()
+        local read = paths.loadWidgetModule("telemetry/read.lua")
+        local first = read.snapshot()
+        t.assertEqual(first.batteryCells, 6)
+
+        -- Telemetry drops.
+        fixture.sensors.RQly.value = 0
+        local disconnected = read.snapshot()
+        t.assertFalse(disconnected.connected)
+        t.assertNil(disconnected.batteryCells)
+
+        -- A different, smaller pack connects next.
+        fixture.sensors.RQly.value = 95
+        fixture.sensors.VFAS.value = 8.4 -- 2S at full charge
+        local reconnected = read.snapshot()
+        t.assertEqual(reconnected.batteryCells, 2)
+      end)
+    end)
+  end)
+
   t.describe("telemetry/read.lua negative-cache rescan", function()
     t.it("retries a sensor that becomes available after the rescan interval", function()
       local fixture = { sensors = {} } -- Curr starts undiscovered

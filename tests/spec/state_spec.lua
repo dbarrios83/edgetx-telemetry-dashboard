@@ -4,24 +4,23 @@ return function(t, mock, paths)
   local state = paths.loadWidgetModule("telemetry/state.lua")
 
   t.describe("telemetry/state.lua battery", function()
-    t.it("reports OK for a healthy 3S pack (12.3V, 4.10V/cell)", function()
-      t.assertEqual(state.evaluateBattery(12.3), state.OK)
+    -- evaluateBattery() takes a resolved PER-CELL voltage, not total pack
+    -- voltage. Cell-count resolution (explicit "Cels" telemetry, or
+    -- latching voltage-based inference as a fallback) is Step 3's shared
+    -- telemetry/battery.lua module; see tests/spec/battery_spec.lua for
+    -- those cases, including the 6S@21.0V and 4S@13.05V regressions.
+    t.it("reports OK for a healthy cell voltage (4.10V/cell)", function()
+      t.assertEqual(state.evaluateBattery(4.10), state.OK)
     end)
 
-    t.it("reports CRITICAL for a low 3S pack (9.9V, 3.30V/cell)", function()
-      t.assertEqual(state.evaluateBattery(9.9), state.CRITICAL)
+    t.it("reports CRITICAL for a low cell voltage (3.30V/cell)", function()
+      t.assertEqual(state.evaluateBattery(3.30), state.CRITICAL)
     end)
 
-    t.it("reports UNKNOWN when voltage is absent or zero", function()
+    t.it("reports UNKNOWN when cell voltage is absent or zero", function()
       t.assertEqual(state.evaluateBattery(nil), state.UNKNOWN)
       t.assertEqual(state.evaluateBattery(0), state.UNKNOWN)
     end)
-
-    -- Cell-count boundary cases (a depleted 4S/6S pack briefly inferred as
-    -- a smaller, "full" pack) are intentionally NOT covered here. That is
-    -- the open Step 3 safety fix (Implementation Plan, Step 3) this harness
-    -- exists to make measurable; its regression fixtures belong with that
-    -- change, not with the harness itself.
   end)
 
   t.describe("telemetry/state.lua link quality", function()
@@ -86,7 +85,7 @@ return function(t, mock, paths)
     t.it("evaluates each field from a connected snapshot", function()
       local result = state.evaluate({
         connected = true,
-        battery = 12.3,
+        batteryCellVoltage = 4.10,
         linkQuality = 98,
         rssi = -55,
         current = 8.2,

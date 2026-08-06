@@ -296,51 +296,16 @@ local function mapAxis(value, minPixel, maxPixel, invert)
   return math.floor(pixel + 0.5)
 end
 
--- Estimate voltage per cell and cell count from total RX battery voltage.
--- Uses the smallest cell count whose per-cell voltage does not exceed the
--- configured max, with a tiny epsilon to keep exact full-charge values such
--- as 8.70 V (2S LiHV) from rounding up to the next pack size.
-local function getVoltagePerCell(totalVoltage)
-  if utils and type(utils.getVoltagePerCell) == "function" then
-    local perCell, cellCount = utils.getVoltagePerCell(totalVoltage)
-    if type(perCell) == "number" and type(cellCount) == "number" and cellCount > 0 then
-      return perCell, cellCount
-    end
-  end
-
-  local maxCellVoltage = 4.35
-  local minCellVoltage = 3.0
-  local epsilon = 0.0001
-
-  if (totalVoltage or 0) > 0 then
-    local estimatedCellCount = math.max(1, math.ceil((totalVoltage / maxCellVoltage) - epsilon))
-    local averageVoltagePerCell = totalVoltage / estimatedCellCount
-
-    if averageVoltagePerCell >= minCellVoltage and averageVoltagePerCell <= (maxCellVoltage + epsilon) then
-      return averageVoltagePerCell, estimatedCellCount
-    end
-  end
-
-  return totalVoltage or 0, 1
-end
-
+-- Cell count / per-cell voltage are resolved once per frame by the
+-- shared telemetry/battery.lua module (see telemetry/read.lua) so every
+-- battery consumer classifies the same numbers the same way -- no local
+-- re-inference here.
 local function batteryIconKey(telemetry, state)
-  local batteryV = telemetry and telemetry.battery
-  if type(batteryV) ~= "number" or batteryV < 0 then
+  local cellV = telemetry and telemetry.batteryCellVoltage
+  if type(cellV) ~= "number" or cellV <= 0 then
+    -- Unknown/unresolved: keep prior placeholder-icon behavior rather
+    -- than guessing a state.
     return "ok"
-  end
-
-  if batteryV == 0 then
-    return "dead"
-  end
-
-  local cellV = getVoltagePerCell(batteryV)
-  if type(cellV) ~= "number" then
-    return "ok"
-  end
-
-  if cellV <= 0 then
-    return "dead"
   end
 
   -- LiHV-aware per-cell thresholds.
@@ -363,19 +328,17 @@ local function formatBatteryText(telemetry)
     return "--.--V"
   end
 
-  local v = telemetry.battery
-  if type(v) ~= "number" or v < 0 then
+  local perCellV = telemetry and telemetry.batteryCellVoltage
+  if type(perCellV) ~= "number" then
     return "--.--V"
   end
 
-  local perCellV, cells = getVoltagePerCell(v)
-  local text = string.format("%.2fV", perCellV)
+  local cells = telemetry.batteryCells
   if not cells or cells < 1 then
     cells = 1
   end
-  text = text .. " (" .. tostring(cells) .. "S)"
 
-  return text
+  return string.format("%.2fV", perCellV) .. " (" .. tostring(cells) .. "S)"
 end
 
 local function formatLinkQualityText(telemetry)

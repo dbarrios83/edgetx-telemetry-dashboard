@@ -5,6 +5,33 @@ local M = {}
 
 local EMPTY_TEXT = "--"
 
+-- Mirrors main.lua's own module-loading fallback order so this file can
+-- load its sibling telemetry/battery.lua on both a real radio (via the
+-- EdgeTX-provided loadScript global) and the desktop test harness (which
+-- backs loadScript with plain loadfile against the real repo path).
+local WIDGET_ROOTS = {
+  "/SCRIPTS/WIDGETS/FPVDASH/",
+  "/WIDGETS/FPVDASH/",
+  "SCRIPTS/WIDGETS/FPVDASH/",
+  "WIDGETS/FPVDASH/",
+  "",
+}
+
+local function loadSiblingModule(relativePath)
+  if not loadScript then
+    return nil
+  end
+  for i = 1, #WIDGET_ROOTS do
+    local chunk = loadScript(WIDGET_ROOTS[i] .. relativePath)
+    if chunk then
+      return chunk()
+    end
+  end
+  return nil
+end
+
+local batteryModule = loadSiblingModule("telemetry/battery.lua")
+
 -- Maps sensor-name -> numeric source-ID, or false when confirmed absent.
 -- Negative entries are cleared every RESCAN_INTERVAL frames so sensors
 -- discovered after initial link-up are automatically retried.
@@ -79,6 +106,11 @@ local snapshot = {
   rssi2 = 0,
   capacity = 0,
   activeAntenna = 0,
+
+  -- Resolved by telemetry/battery.lua; nil until a connected snapshot
+  -- has been evaluated. See M.snapshot() below.
+  batteryCells = nil,
+  batteryCellVoltage = nil,
 
   available = {
     battery = false,
@@ -270,6 +302,33 @@ local function assignText(field, normalizer)
   end
 end
 
+-- Real per-cell voltages, when the FC/receiver reports them. EdgeTX's
+-- "Cels" sensor returns a table keyed 1..N by cell number, or the number
+-- 0 when no cells are detected -- #table is the true, measured cell
+-- count and is always preferred over voltage-based inference.
+local function readExplicitCellCount()
+  if not getValue then
+    return nil
+  end
+
+  local id = resolveId("Cels")
+  if id == false then
+    return nil
+  end
+
+  local cels = getValue(id)
+  if type(cels) ~= "table" then
+    return nil
+  end
+
+  local count = #cels
+  if count <= 0 then
+    return nil
+  end
+
+  return count
+end
+
 -- Base connection on live telemetry values, not just sensor presence.
 -- Sensor IDs remain available even when RX link drops, so availability flags
 -- alone can keep connected=true incorrectly.
@@ -312,6 +371,21 @@ function M.snapshot()
   assignNumeric("activeAntenna")
 
   updateConnectionFlag()
+
+  if batteryModule then
+    if snapshot.connected then
+      local explicitCells = readExplicitCellCount()
+      local cells, cellVoltage = batteryModule.resolve(snapshot.battery, explicitCells)
+      snapshot.batteryCells = cells
+      snapshot.batteryCellVoltage = cellVoltage
+    else
+      -- A new connection may be a different pack; do not carry a stale
+      -- latched cell count across a disconnect.
+      batteryModule.reset()
+      snapshot.batteryCells = nil
+      snapshot.batteryCellVoltage = nil
+    end
+  end
 
   return snapshot
 end

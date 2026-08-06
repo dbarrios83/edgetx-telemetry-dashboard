@@ -12,27 +12,20 @@ M.CRITICAL     = "CRITICAL"
 M.UNKNOWN      = "UNKNOWN"
 M.DISCONNECTED = "DISCONNECTED"
 
--- Detect approximate LiPo/LiHV cell count from total pack voltage.
--- Uses a ceiling against max-charge voltage so exact full-charge values such
--- as 8.70 V and 17.40 V map to 2S and 4S instead of the next pack size.
-local function detectCellCount(voltage)
-  if not voltage or voltage <= 0 then
-    return 1
-  end
-  return math.max(1, math.ceil((voltage / 4.35) - 0.0001))
-end
-
--- Evaluate battery state from total pack voltage.
--- Per-cell thresholds: OK > 3.7 V, WARNING 3.5–3.7 V, CRITICAL < 3.5 V
-function M.evaluateBattery(voltage)
-  if not voltage or voltage <= 0 then
+-- Evaluate battery state from resolved per-cell voltage.
+-- Cell-count resolution (explicit "Cels" telemetry preferred, latching
+-- voltage-based inference as a fallback) lives in the single shared
+-- telemetry/battery.lua module -- this function only classifies the
+-- per-cell voltage it is given, so a mis-inferred cell count can never
+-- be computed twice, two different ways, in two different files.
+-- Per-cell thresholds: OK > 3.7 V, WARNING 3.5-3.7 V, CRITICAL < 3.5 V
+function M.evaluateBattery(cellVoltage)
+  if not cellVoltage or cellVoltage <= 0 then
     return M.UNKNOWN
   end
-  local cells = detectCellCount(voltage)
-  local cellV = voltage / cells
-  if cellV > 3.7 then
+  if cellVoltage > 3.7 then
     return M.OK
-  elseif cellV >= 3.5 then
+  elseif cellVoltage >= 3.5 then
     return M.WARNING
   else
     return M.CRITICAL
@@ -139,7 +132,7 @@ function M.evaluate(snapshot)
   local satellitesState = M.evaluateSatellites(snapshot.satellites, available.satellites)
 
   return {
-    battery     = M.evaluateBattery(snapshot.battery),
+    battery     = M.evaluateBattery(snapshot.batteryCellVoltage),
     linkQuality = M.evaluateLinkQuality(snapshot.linkQuality, available.linkQuality),
     rssi        = M.evaluateRSSI(snapshot.rssi, available.rssi),
     current     = M.evaluateCurrent(snapshot.current, available.current),

@@ -450,28 +450,15 @@ local DIAG_ANTENNA_CARD_SPEC = {
 }
 
 -- ─── Battery card (P1) ────────────────────────────────────────────────────────
--- Displays average per-cell voltage inside the P1 slot.
--- Cell count uses a max-cell-voltage ceiling so exact full-charge pack values
--- do not spill into the next pack size.
+-- Displays average per-cell voltage inside the P1 slot. Cell count /
+-- per-cell voltage are resolved once per frame by the shared
+-- telemetry/battery.lua module (see telemetry/read.lua) -- this card
+-- only displays the result, it does not infer cell count itself.
 local function drawBattery(slot, telemetry, state)
   if not slot then return end
-  local packVoltage = (telemetry and telemetry.battery) or 0
-  local maxCellVoltage = 4.35
-  local epsilon = 0.0001
-
-  -- Auto-detect cell count from max-charge voltage.
-  local cells = 1
-  if packVoltage > 0 then
-    cells = math.max(1, math.ceil((packVoltage / maxCellVoltage) - epsilon))
-  end
-
-  local cellVoltage = 0
-  if packVoltage > 0 and cells > 0 then
-    cellVoltage = packVoltage / cells
-  end
 
   BATTERY_CARD_SPEC.icon = icons.battery
-  BATTERY_CARD_SPEC.value = cellVoltage
+  BATTERY_CARD_SPEC.value = (telemetry and telemetry.batteryCellVoltage) or 0
   BATTERY_CARD_SPEC.state = (state and state.battery) or "UNKNOWN"
 
   drawCard(slot, BATTERY_CARD_SPEC)
