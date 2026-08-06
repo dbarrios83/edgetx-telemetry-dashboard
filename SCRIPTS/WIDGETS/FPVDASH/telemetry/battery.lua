@@ -39,11 +39,14 @@ function M.reset()
 end
 
 -- Resolves { cells, cellVoltage } for one frame.
---   voltage      - total pack voltage (VFAS/RxBt/etc.), or nil/0 if unknown.
+--   voltage      - total pack voltage (VFAS/RxBt/etc.), or nil if the
+--                   sensor isn't discovered at all. 0 is a real,
+--                   meaningful reading (see below), not "unknown".
 --   explicitCells - real cell count from the "Cels" sensor (#getValue("Cels")),
 --                    or nil when that sensor is not discovered/reporting.
--- Returns cells=nil when nothing credible is known (renders as UNKNOWN,
--- never as an optimistic guess).
+-- Returns cells=nil, cellVoltage=nil only when the sensor is genuinely
+-- absent or never reported anything usable -- never as an optimistic
+-- guess.
 function M.resolve(voltage, explicitCells)
   if type(explicitCells) == "number" and explicitCells > 0 then
     -- Real per-cell telemetry is ground truth: it can move the latch in
@@ -56,16 +59,24 @@ function M.resolve(voltage, explicitCells)
     end
   end
 
+  if type(voltage) ~= "number" or voltage < 0 then
+    -- No usable reading at all (sensor absent, or a nonsensical
+    -- negative value): nothing to report, regardless of any
+    -- previously latched cell count.
+    return latchedCells, nil
+  end
+
   if latchedCells == nil then
-    return nil, nil
+    -- Cell count was never established (e.g. the very first reading
+    -- this session is already 0V), but 0V itself is still a real
+    -- measurement -- a pack reporting 0V is critically dead/
+    -- disconnected regardless of how many cells it has. Report the
+    -- raw pack voltage; cells stays nil so callers don't invent a
+    -- cell count they don't actually know.
+    return nil, voltage
   end
 
-  local cellVoltage = nil
-  if type(voltage) == "number" and voltage > 0 then
-    cellVoltage = voltage / latchedCells
-  end
-
-  return latchedCells, cellVoltage
+  return latchedCells, voltage / latchedCells
 end
 
 return M

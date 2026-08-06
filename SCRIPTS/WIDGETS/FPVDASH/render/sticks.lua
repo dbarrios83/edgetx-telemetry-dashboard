@@ -302,21 +302,23 @@ end
 -- re-inference here.
 local function batteryIconKey(telemetry, state)
   local cellV = telemetry and telemetry.batteryCellVoltage
-  if type(cellV) ~= "number" or cellV <= 0 then
-    -- Unknown/unresolved: no icon at all (see BATTERY_ICONS -- "unknown"
-    -- has no entry, so drawRxBatterySection's `if icon then` skips it).
-    -- Found via Step 11 simulator testing: this used to return "ok",
-    -- drawing a green/full battery icon next to the "--.--V" placeholder
-    -- text -- a genuinely misleading combination for a safety-relevant
-    -- indicator, since it visually asserted the pack was fine when the
-    -- voltage was actually unknown. No existing icon asset represents
-    -- "unknown" (only full/ok/warn/low/dead), so omitting the icon
-    -- entirely is the only option that doesn't assert something false.
+  if type(cellV) ~= "number" or cellV < 0 then
+    -- Genuinely no reading at all (sensor absent, or a nonsensical
+    -- negative value): no icon (see BATTERY_ICONS -- "unknown" has no
+    -- entry, so drawRxBatterySection's `if icon then` skips it). No
+    -- existing icon asset represents "unknown" (only full/ok/warn/low/
+    -- dead), so omitting the icon is the only option that doesn't
+    -- assert something false.
     return "unknown"
   end
 
   -- LiHV-aware per-cell thresholds.
   -- 4.35V max-charge should be "full", and 4.20V must remain green.
+  -- A real 0V reading falls through every branch to "dead" here, same
+  -- as any other critically-low voltage -- found via Step 11 simulator
+  -- testing that this used to short-circuit on `cellV <= 0` and return
+  -- "ok" (later "unknown"), when a discovered sensor genuinely
+  -- reporting 0V is exactly the "dead" case this icon exists for.
   if cellV > 4.00 then
     return "full"
   elseif cellV > 3.70 then
@@ -340,12 +342,18 @@ local function formatBatteryText(telemetry)
     return "--.--V"
   end
 
-  local cells = telemetry.batteryCells
-  if not cells or cells < 1 then
-    cells = 1
-  end
+  local text = string.format("%.2fV", perCellV)
 
-  return string.format("%.2fV", perCellV) .. " (" .. tostring(cells) .. "S)"
+  local cells = telemetry.batteryCells
+  if cells and cells >= 1 then
+    text = text .. " (" .. tostring(cells) .. "S)"
+  end
+  -- No "(NS)" suffix when cell count was never established (e.g. the
+  -- very first reading this session is already 0V) -- showing "(1S)"
+  -- would be an invented, likely-wrong claim; the raw voltage alone is
+  -- still real and worth showing.
+
+  return text
 end
 
 local function formatLinkQualityText(telemetry)

@@ -455,7 +455,12 @@ function M.snapshot(elrsMajorVersion)
   if batteryModule then
     if snapshot.connected then
       local explicitCells = readExplicitCellCount()
-      local cells, cellVoltage = batteryModule.resolve(snapshot.battery, explicitCells)
+      -- snapshot.battery defaults to 0 when the sensor is undiscovered
+      -- (see assignNumeric), which battery.lua must not mistake for a
+      -- real 0V reading -- pass nil so it can tell "absent" from
+      -- "present, genuinely reads zero" apart.
+      local batteryVoltage = snapshot.available.battery and snapshot.battery or nil
+      local cells, cellVoltage = batteryModule.resolve(batteryVoltage, explicitCells)
       snapshot.batteryCells = cells
       snapshot.batteryCellVoltage = cellVoltage
     else

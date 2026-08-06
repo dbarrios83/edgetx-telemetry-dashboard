@@ -97,7 +97,11 @@ when the flight controller doesn't report it explicitly, and *never
 lets the inferred count decrease while the same pack stays connected*
 — a draining 6S pack cannot be mistaken for a smaller, "full" pack
 mid-flight. The count only resets when telemetry disconnects and
-reconnects (a new connection may be a different pack).
+reconnects (a new connection may be a different pack). A battery
+sensor that's discovered but genuinely reads 0V is shown as `0.00V`
+with the critical/dead battery icon — a real zero reading is treated
+as "dead," not "unknown"; only a sensor that was never discovered at
+all shows the `--.--V` placeholder.
 
 **Connection status.** "Connected" is based primarily on EdgeTX's own
 telemetry-streaming signal (`getRSSI()`), not on any single

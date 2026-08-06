@@ -17,9 +17,14 @@ return function(t, mock, paths)
       t.assertEqual(state.evaluateBattery(3.30), state.CRITICAL)
     end)
 
-    t.it("reports UNKNOWN when cell voltage is absent or zero", function()
+    t.it("reports UNKNOWN when cell voltage is absent, but CRITICAL for a real 0V reading", function()
+      -- A real 0V reading from a discovered sensor is critically
+      -- dead/disconnected, not "unknown" -- see render/sticks.lua's
+      -- batteryIconKey for the matching icon behavior. Only a missing
+      -- (nil) or nonsensical (negative) value is truly UNKNOWN.
       t.assertEqual(state.evaluateBattery(nil), state.UNKNOWN)
-      t.assertEqual(state.evaluateBattery(0), state.UNKNOWN)
+      t.assertEqual(state.evaluateBattery(-1), state.UNKNOWN)
+      t.assertEqual(state.evaluateBattery(0), state.CRITICAL)
     end)
   end)
 

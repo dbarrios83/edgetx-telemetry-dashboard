@@ -18,9 +18,15 @@ M.DISCONNECTED = "DISCONNECTED"
 -- telemetry/battery.lua module -- this function only classifies the
 -- per-cell voltage it is given, so a mis-inferred cell count can never
 -- be computed twice, two different ways, in two different files.
--- Per-cell thresholds: OK > 3.7 V, WARNING 3.5-3.7 V, CRITICAL < 3.5 V
+-- Per-cell thresholds: OK > 3.7 V, WARNING 3.5-3.7 V, CRITICAL <= 3.5 V
+-- (0 V included -- a real reading of exactly zero from a discovered
+-- sensor means critically dead/disconnected, not "unknown"; only a
+-- missing/negative/non-numeric reading is UNKNOWN. Found via Step 11
+-- simulator testing: this previously mapped voltage<=0 to UNKNOWN,
+-- which also mismatched the battery icon showing "dead" for the same
+-- input -- see render/sticks.lua's batteryIconKey.)
 function M.evaluateBattery(cellVoltage)
-  if not cellVoltage or cellVoltage <= 0 then
+  if type(cellVoltage) ~= "number" or cellVoltage < 0 then
     return M.UNKNOWN
   end
   if cellVoltage > 3.7 then
