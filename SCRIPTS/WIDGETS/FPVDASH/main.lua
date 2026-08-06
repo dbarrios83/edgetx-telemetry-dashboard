@@ -235,8 +235,15 @@ local function refresh(widget, event, touchState)
     elrsModule.update(widget.elrsState)
   end
 
+  -- Resolved before the snapshot so RFMD decoding can pick the correct
+  -- version-specific rate table (see telemetry/read.lua).
+  local elrsMajorVersion = nil
+  if elrsModule and widget.elrsState and elrsModule.getMajorVersion then
+    elrsMajorVersion = elrsModule.getMajorVersion(widget.elrsState)
+  end
+
   if telemetryRead and telemetryRead.snapshot then
-    widget.telemetry = telemetryRead.snapshot()
+    widget.telemetry = telemetryRead.snapshot(elrsMajorVersion)
   else
     widget.telemetry = nil
   end

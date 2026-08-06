@@ -110,24 +110,29 @@ Usage:
 ### ![RFMD icon](SCRIPTS/WIDGETS/FPVDASH/icons/dark/rfmd.png) RFMD - Packet Rate (Hz)
 
 What it shows:
-ExpressLRS packet rate decoded from RFMD telemetry.
--- Valid for ELRS 2.4GHz LoRa modes
+ExpressLRS packet rate, decoded from RFMD telemetry using a table selected by
+the detected ELRS firmware major version (3.x or 4.x) -- see
+[docs/platform/compatibility-matrix.md](docs/platform/compatibility-matrix.md)
+for the full version/band tables and sourcing. RFMD is a raw firmware index,
+not a rate value, and the same index means a different rate on 3.x vs 4.x, so
+this card only decodes it once the transmitter's ELRS version has been read
+from CRSF device-info. Until then, or for an ELRS version outside 3.x/4.x, it
+shows unavailable rather than guessing.
 
 Why it matters:
 Confirms your control link configuration.
 
 Typical values:
-- 25 Hz
-- 50 Hz
-- 100 Hz
-- 150 Hz
-- 250 Hz
-- 500 Hz
-- 1000 Hz
+- 25 Hz, 50 Hz, 100 Hz, 150 Hz, 200 Hz, 250 Hz, 333 Hz, 500 Hz, 1000 Hz,
+  depending on ELRS version, RF band (900MHz/2.4GHz/dual), and modulation
+  (LoRa/FLRC/FSK).
 
 Warning signs:
 - Wrong rate can indicate an incorrect model profile.
 - Unexpected changes can indicate dynamic mode issues.
+- A persistent unavailable reading with an otherwise healthy link usually
+  means the ELRS version hasn't been read yet (device-info exchange happens
+  shortly after connecting) rather than a real fault.
 
 Usage:
 - Pre-flight configuration check

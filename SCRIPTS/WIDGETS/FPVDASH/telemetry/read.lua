@@ -58,38 +58,53 @@ local FIELD_SENSORS = {
   rsnr          = { "RSNR", "SNR" },
 }
 
-local PACKET_RATE_FROM_RFMD = {
-  -- Keep legacy mappings 1..7 exactly as the widget already expects today.
-  -- Some newer ELRS RFMD tables reuse these indexes with different meanings,
-  -- but changing them here would regress users who currently see correct rates.
-  [1] = 25,
-  [2] = 50,
-  [3] = 100,
-  [4] = 150,
-  [5] = 250,
-  [6] = 500,
-  [7] = 1000,
+-- RFMD is the raw ExpressLRS firmware expresslrs_RFrates_e enum value, and
+-- that enum was reshaped between the 3.x and 4.x firmware lines -- the same
+-- raw index means a different rate depending on version. Both tables below
+-- are pulled directly from tagged ExpressLRS firmware source
+-- (src/include/common.h), not inferred; see docs/platform/compatibility-
+-- matrix.md Section 4 for the full sourcing and version range verified.
+--
+-- ELRS 3.x: one flat table, same indexes regardless of RF band.
+-- Verified identical from tag 3.0.0 through 3.6.4 (the last 3.x release);
+-- the enum only ever grew new entries at higher indexes across that range,
+-- so this table is a safe superset for any 3.x firmware.
+local PACKET_RATE_FROM_RFMD_3X = {
+  [0]  = 4,     -- LoRa (failsafe/low-rate beacon)
+  [1]  = 25,    -- LoRa
+  [2]  = 50,    -- LoRa
+  [3]  = 100,   -- LoRa
+  [4]  = 100,   -- LoRa, 8ch
+  [5]  = 150,   -- LoRa
+  [6]  = 200,   -- LoRa
+  [7]  = 250,   -- LoRa
+  [8]  = 333,   -- LoRa, 8ch
+  [9]  = 500,   -- LoRa
+  [10] = 250,   -- FLRC, DVDA
+  [11] = 500,   -- FLRC, DVDA
+  [12] = 500,   -- FLRC
+  [13] = 1000,  -- FLRC
+  [14] = 50,    -- LoRa, DVDA
+  [15] = 200,   -- LoRa, 8ch
+  [16] = 500,   -- FSK 2.4GHz, DVDA
+  [17] = 1000,  -- FSK 2.4GHz
+  [18] = 1000,  -- FSK 900MHz
+  [19] = 1000,  -- FSK 900MHz, 8ch
+}
 
-  -- Additional exact mappings that do not conflict with the widget's
-  -- existing 1..7 behavior. RFMD decoding must remain exact-only:
-  -- never approximate, infer, or guess packet rates.
-  [8] = 333,
-  [9] = 500,
-  [10] = 50,
-  [11] = 100,
-  [12] = 150,
-  [13] = 200,
-  [14] = 250,
-  [15] = 333,
-  [16] = 500,
-  [25] = 50,
-  [26] = 100,
-  [27] = 150,
-  [28] = 250,
-  [29] = 500,
-  [30] = 250,
-  [31] = 500,
-  [32] = 500,
+-- ELRS 4.x: disjoint index ranges per band, so the RFMD value's own range
+-- identifies the band -- no separate band signal is needed. Verified
+-- identical from tag 4.0.0 through 4.1.0 (latest at time of writing).
+local PACKET_RATE_FROM_RFMD_4X = {
+  -- 900 MHz (0-11)
+  [0]  = 25, [1]  = 50,  [2]  = 100, [3]  = 100, [4]  = 150, [5]  = 200,
+  [6]  = 200, [7] = 250, [8]  = 333, [9]  = 500, [10] = 50,  [11] = 1000,
+  -- 2.4 GHz (20-36)
+  [20] = 25, [21] = 50,  [22] = 100, [23] = 100, [24] = 150, [25] = 200,
+  [26] = 200, [27] = 250, [28] = 333, [29] = 500, [30] = 250, [31] = 500,
+  [32] = 500, [33] = 1000, [34] = 250, [35] = 500, [36] = 1000,
+  -- Dual-band (100-101)
+  [100] = 100, [101] = 150,
 }
 
 local snapshot = {
@@ -226,34 +241,42 @@ local function toNumber(v)
   return nil
 end
 
-local function resolvePacketRateFromRfmd(rfmd)
+local function resolvePacketRateFromRfmd(rfmd, elrsMajorVersion)
   if rfmd == nil then
     return nil
   end
 
-  -- RFMD index 0 is commonly reported during telemetry loss, so we avoid
-  -- mapping it to 4 Hz to prevent false "valid" packet-rate display.
+  -- RFMD index 0 is commonly reported during telemetry loss/startup, so
+  -- we avoid mapping it to a real rate (4Hz on 3.x, 25Hz-900MHz on 4.x)
+  -- to prevent a false "valid" packet-rate display. This is a
+  -- deliberately conservative policy applied regardless of version --
+  -- see docs/platform/compatibility-matrix.md Section 4.
   if rfmd == 0 then
     return nil
   end
 
-  local mappedRate = PACKET_RATE_FROM_RFMD[rfmd]
-  if mappedRate ~= nil then
-    return mappedRate
+  local rateTable
+  if elrsMajorVersion == 4 then
+    rateTable = PACKET_RATE_FROM_RFMD_4X
+  elseif elrsMajorVersion == 3 then
+    rateTable = PACKET_RATE_FROM_RFMD_3X
+  else
+    -- Unknown/undetected ELRS version: never guess which table applies.
+    return nil
   end
 
-  -- Unknown RFMD values must stay unresolved so the existing UI fallback
-  -- renders a neutral missing state rather than an incorrect "N Hz" value.
-  return nil
+  -- Unknown indexes within a known version's table must also stay
+  -- unresolved rather than rendering an incorrect "N Hz" value.
+  return rateTable[rfmd]
 end
 
-local function normalizePacketRate(raw)
+local function normalizePacketRate(raw, elrsMajorVersion)
   local n = toNumber(raw)
   if not n then
     return nil
   end
 
-  return resolvePacketRateFromRfmd(n)
+  return resolvePacketRateFromRfmd(n, elrsMajorVersion)
 end
 
 local function normalizeFlightMode(raw)
@@ -271,12 +294,12 @@ local function normalizeFlightMode(raw)
   return nil
 end
 
-local function assignNumeric(field, normalizer)
+local function assignNumeric(field, normalizer, extra)
   local raw = readFirst(FIELD_SENSORS[field])
   local value = nil
 
   if normalizer then
-    value = normalizer(raw)
+    value = normalizer(raw, extra)
   else
     value = toNumber(raw)
   end
@@ -368,7 +391,12 @@ local function updateConnectionFlag()
   end
 end
 
-function M.snapshot()
+-- elrsMajorVersion (optional): the ELRS firmware major version (3 or 4),
+-- resolved from CRSF device-info by telemetry/elrs.lua and passed in by
+-- main.lua. Selects which RFMD rate table to decode packet rate with;
+-- omitted or unrecognized versions leave packetRate unavailable rather
+-- than guessing.
+function M.snapshot(elrsMajorVersion)
   frameCount = frameCount + 1
   if frameCount >= RESCAN_INTERVAL then
     frameCount = 0
@@ -378,7 +406,7 @@ function M.snapshot()
   assignNumeric("battery")
   assignNumeric("rssi")
   assignNumeric("linkQuality")
-  assignNumeric("packetRate", normalizePacketRate)
+  assignNumeric("packetRate", normalizePacketRate, elrsMajorVersion)
   assignNumeric("current")
   assignNumeric("satellites")
   snapshot.sats = snapshot.satellites

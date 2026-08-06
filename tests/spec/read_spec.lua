@@ -56,34 +56,69 @@ return function(t, mock, paths)
     end)
   end)
 
-  t.describe("telemetry/read.lua RFMD packet-rate mapping", function()
-    local function snapshotWithRfmd(rfmdValue)
+  t.describe("telemetry/read.lua RFMD packet-rate mapping (version-aware)", function()
+    local function snapshotWithRfmd(rfmdValue, elrsMajorVersion)
       local fixture = paths.loadFixture("connected")
       fixture.sensors.RFMD.value = rfmdValue
       local snap
       mock.withInstall(fixture, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        snap = read.snapshot()
+        snap = read.snapshot(elrsMajorVersion)
       end)
       return snap
     end
 
-    t.it("maps known legacy RFMD indexes to their documented Hz value", function()
-      local snap = snapshotWithRfmd(3)
+    t.it("maps ELRS 3.x indexes using the flat, band-independent table", function()
+      local snap = snapshotWithRfmd(9, 3) -- RATE_LORA_500HZ
       t.assertTrue(snap.available.packetRate)
-      t.assertEqual(snap.packetRate, 100)
+      t.assertEqual(snap.packetRate, 500)
     end)
 
-    t.it("treats RFMD 0 as unavailable rather than a false 'valid' rate", function()
-      local snap = snapshotWithRfmd(0)
+    t.it("maps ELRS 4.x indexes in the 900MHz range (0-11)", function()
+      local snap = snapshotWithRfmd(4, 4) -- RATE_LORA_900_150HZ
+      t.assertTrue(snap.available.packetRate)
+      t.assertEqual(snap.packetRate, 150)
+    end)
+
+    t.it("maps ELRS 4.x indexes in the 2.4GHz range (20-36)", function()
+      local snap = snapshotWithRfmd(29, 4) -- RATE_LORA_2G4_500HZ
+      t.assertTrue(snap.available.packetRate)
+      t.assertEqual(snap.packetRate, 500)
+    end)
+
+    t.it("maps ELRS 4.x dual-band indexes (100-101)", function()
+      local snap = snapshotWithRfmd(101, 4) -- RATE_LORA_DUAL_150HZ
+      t.assertTrue(snap.available.packetRate)
+      t.assertEqual(snap.packetRate, 150)
+    end)
+
+    t.it("resolves the same raw RFMD index differently depending on ELRS major version", function()
+      -- This is the exact protocol ambiguity the plan warns about: index 4
+      -- means "100Hz (8ch)" on 3.x but "150Hz (900MHz)" on 4.x. Getting
+      -- this wrong silently is precisely what the old flat table did.
+      local snap3x = snapshotWithRfmd(4, 3)
+      local snap4x = snapshotWithRfmd(4, 4)
+      t.assertEqual(snap3x.packetRate, 100)
+      t.assertEqual(snap4x.packetRate, 150)
+    end)
+
+    t.it("treats RFMD 0 as unavailable regardless of version, not a real rate", function()
+      t.assertFalse(snapshotWithRfmd(0, 3).available.packetRate)
+      t.assertFalse(snapshotWithRfmd(0, 4).available.packetRate)
+    end)
+
+    t.it("treats an index that falls in a band gap of a known version's table as unavailable", function()
+      local snap = snapshotWithRfmd(15, 4) -- between the 900MHz (0-11) and 2.4GHz (20-36) ranges
       t.assertFalse(snap.available.packetRate)
       t.assertEqual(snap.packetRate, 0)
     end)
 
-    t.it("treats an unmapped RFMD index as unavailable rather than guessing", function()
-      local snap = snapshotWithRfmd(250) -- not present in PACKET_RATE_FROM_RFMD
+    t.it("never guesses a rate when the ELRS version is unknown", function()
+      -- RFMD 9 would resolve to 500Hz on 3.x, but with no version
+      -- detected yet, guessing which table applies is exactly what the
+      -- plan prohibits.
+      local snap = snapshotWithRfmd(9, nil)
       t.assertFalse(snap.available.packetRate)
-      t.assertEqual(snap.packetRate, 0)
     end)
   end)
 

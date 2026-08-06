@@ -157,16 +157,32 @@ lost. The widget's existing decision to always treat RFMD `0` as
 unavailable rather than displaying a rate ([read.lua:190-199](../../SCRIPTS/WIDGETS/FPVDASH/telemetry/read.lua#L190-L199))
 is correct and should stay.
 
-### Current widget table vs. the authoritative tables
+### Implementation status (Step 5, done 2026-08-06)
 
-[`PACKET_RATE_FROM_RFMD`](../../SCRIPTS/WIDGETS/FPVDASH/telemetry/read.lua#L33-L65)
-only matches the real firmware at indexes 1-3 (25/50/100 Hz, which
-happen to be identical across the old flat numbering and both tables
-above). From index 4 onward it diverges from both the 3.x and 4.x
-tables — e.g. widget index 4 says 150 Hz, but 3.x says 100 Hz (8ch) and
-4.x 2.4 GHz says 150 Hz only at index 24, not 4. **This table is stale
-and is the concrete defect Step 5 needs to replace** with version/band
--aware lookup, using the tables above as source of truth.
+`telemetry/read.lua` now carries two separate tables,
+[`PACKET_RATE_FROM_RFMD_3X`](../../SCRIPTS/WIDGETS/FPVDASH/telemetry/read.lua)
+and
+[`PACKET_RATE_FROM_RFMD_4X`](../../SCRIPTS/WIDGETS/FPVDASH/telemetry/read.lua),
+transcribed directly from the tables above, and
+`resolvePacketRateFromRfmd(rfmd, elrsMajorVersion)` selects between them.
+Since the 4.x table's band ranges are disjoint (900/2.4/dual never
+overlap), the RFMD value's own range identifies the band — no separate
+band signal is needed, only the ELRS major version.
+
+The major version comes from `telemetry/elrs.lua`'s existing CRSF
+device-info parsing, now also exposed as structured data
+(`state.versionMajor` / `M.getMajorVersion(state)`) rather than only a
+display string, and threaded through by `main.lua` into
+`telemetryRead.snapshot(elrsMajorVersion)`.
+
+An index that falls in neither table (unknown version, or a value in a
+band gap like `12`-`19` for 4.x) resolves to unavailable, never a
+guess. RFMD `0` stays unavailable regardless of version — a deliberately
+conservative policy, since it's also the value commonly seen while
+telemetry is lost or not yet established.
+
+The old flat, non-version-aware `PACKET_RATE_FROM_RFMD` table this
+section used to describe as stale has been removed entirely.
 
 ## 5. Canonical sensor aliases and precedence
 

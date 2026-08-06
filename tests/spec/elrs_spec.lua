@@ -38,6 +38,28 @@ return function(t, mock, paths)
       end)
     end)
 
+    t.it("exposes the parsed major version for RFMD table selection", function()
+      local data = {}
+      data[1] = 0x00
+      data[2] = 0xEE
+      data[3], data[4], data[5], data[6], data[7] = 69, 76, 82, 83, 0
+      for i = 8, 16 do
+        data[i] = 0
+      end
+      data[17], data[18], data[19] = 4, 1, 0 -- ELRS 4.1.0
+
+      mock.withInstall({ crsfIncoming = { { command = 0x29, data = data } } }, function()
+        local elrs = paths.loadWidgetModule("telemetry/elrs.lua")
+        local state = elrs.init()
+
+        t.assertNil(elrs.getMajorVersion(state))
+
+        elrs.update(state)
+
+        t.assertEqual(elrs.getMajorVersion(state), 4)
+      end)
+    end)
+
     t.it("ignores frames not addressed to the TX module (address != 0xEE)", function()
       local data = { 0x00, 0xC8, 88, 0 } -- source 0xC8, not 0xEE
       mock.withInstall({ crsfIncoming = { { command = 0x29, data = data } } }, function()

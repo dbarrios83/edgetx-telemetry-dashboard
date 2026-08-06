@@ -35,6 +35,13 @@ local function parseDeviceInfo(state, data)
     return true
   end
 
+  -- Exposed as structured data (not just the display string) so callers
+  -- such as telemetry/read.lua's RFMD decoding can pick the correct
+  -- version-specific rate table. See M.getMajorVersion().
+  state.versionMajor = vMaj
+  state.versionMinor = vMin
+  state.versionRevision = vRev
+
   state.vStr = string.format("%s %d.%d.%d", state.name, vMaj, vMin, vRev)
   return true
 end
@@ -83,6 +90,16 @@ function M.getString(state)
   return (state and type(state.vStr) == "string" and #state.vStr > 0)
     and state.vStr
     or  "ELRS"
+end
+
+-- Return the parsed ELRS major version number (e.g. 3 or 4), or nil when
+-- no device-info frame with a parsed version has been received yet.
+-- Used to select the correct RFMD rate table -- see telemetry/read.lua.
+function M.getMajorVersion(state)
+  if state and type(state.versionMajor) == "number" then
+    return state.versionMajor
+  end
+  return nil
 end
 
 return M
