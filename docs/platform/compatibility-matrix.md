@@ -340,3 +340,7 @@ Manual/Step 11 regression should use, at minimum:
 
 Both should be tested in EdgeTX 2.12 and the current 2.12/3.0 line, per
 Section 1.
+
+The full, checkable Step 11 test plan — exact inputs and expected
+results for every scenario referenced throughout this document — is
+[simulator-regression-checklist.md](simulator-regression-checklist.md).
