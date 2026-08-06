@@ -332,6 +332,20 @@ it would risk breaking every existing user's already-configured
 screen (the zone would no longer resolve to this widget) for a length
 constraint that could not be confirmed to exist.
 
+**Cross-checked again (2026-08-06, Architecture & Packaging Hardening
+project, Task 1):** the current
+[luadoc.edgetx.org "Widget Scripts"](https://luadoc.edgetx.org/overview/script-types/widget-scripts)
+reference page still states in prose that "The name length must be 10
+characters or less." That wording is unchanged despite the firmware-source
+finding above. Since `parseOptionDefinitions`/`WidgetOption::name`/the
+persistence layer cited above show no enforced truncation or rejection in
+EdgeTX 2.12+ color-LCD firmware, this is treated as a documentation/
+firmware discrepancy, not a functional constraint — the decision to leave
+the widget's registered name unchanged stands. If a future EdgeTX firmware
+release starts enforcing this documented limit, `main.lua`'s `name` field
+would need revisiting at that time, weighed again against the zone-lookup
+breakage risk described above.
+
 The real, confirmed bug in this area was the transparency-value mapping
 (Section 9 below), not name length.
 
