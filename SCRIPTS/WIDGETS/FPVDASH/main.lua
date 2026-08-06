@@ -17,16 +17,47 @@ local function loadModule(relativePath)
   return nil
 end
 
-local layoutModule    = loadModule("layout/layout.lua")
-local telemetryRead   = loadModule("telemetry/read.lua")
-local telemetryState  = loadModule("telemetry/state.lua")
-local elrsModule      = loadModule("telemetry/elrs.lua")
+-- Deferred: EdgeTX loads every installed widget's top-level chunk whenever
+-- a model is selected, even widgets never placed in a zone (see EdgeTX's
+-- widget-scripts documentation: "All widget scripts on the SD card are
+-- loaded into memory when the model is selected, even widgets that are
+-- not used" -- and its guidance to use loadScript() to load code
+-- dynamically rather than loading everything at the top level). Loading
+-- all nine submodules unconditionally here paid that cost for every
+-- installed-but-unused instance. They now stay nil until
+-- ensureModulesLoaded() runs them, on first create().
+local layoutModule
+local telemetryRead
+local telemetryState
+local elrsModule
 
-local topbarRenderer  = loadModule("render/topbar.lua")
-local sticksRenderer  = loadModule("render/sticks.lua")
-local contextRenderer = loadModule("render/context.lua")
-local timersRenderer  = loadModule("render/timers.lua")
-local footerRenderer  = loadModule("render/footer.lua")
+local topbarRenderer
+local sticksRenderer
+local contextRenderer
+local timersRenderer
+local footerRenderer
+
+local modulesLoaded = false
+
+-- Loads every submodule exactly once. Safe to call from both create() and
+-- refresh() -- the flag makes repeat calls a no-op. name/options below do
+-- not depend on any of these, so EdgeTX can read widget metadata (before
+-- the widget is ever instantiated) without triggering a load.
+local function ensureModulesLoaded()
+  if modulesLoaded then return end
+  modulesLoaded = true
+
+  layoutModule    = loadModule("layout/layout.lua")
+  telemetryRead   = loadModule("telemetry/read.lua")
+  telemetryState  = loadModule("telemetry/state.lua")
+  elrsModule      = loadModule("telemetry/elrs.lua")
+
+  topbarRenderer  = loadModule("render/topbar.lua")
+  sticksRenderer  = loadModule("render/sticks.lua")
+  contextRenderer = loadModule("render/context.lua")
+  timersRenderer  = loadModule("render/timers.lua")
+  footerRenderer  = loadModule("render/footer.lua")
+end
 
 local _WHITE = (type(WHITE) == "number") and WHITE or 0xFFFF
 local _BLACK = 0x0000
@@ -193,6 +224,8 @@ end
 
 local function create(zone, options)
 
+  ensureModulesLoaded()
+
   local theme = resolveTheme(options)
 
   return {
@@ -233,6 +266,12 @@ end
 --------------------------------------------------
 
 local function refresh(widget, event, touchState)
+
+  -- Defensive: EdgeTX always calls create() before refresh() for a given
+  -- instance, so modules are normally already loaded by here. This guard
+  -- is a single boolean check (see ensureModulesLoaded()) and only matters
+  -- if refresh() is ever reached without a preceding create() call.
+  ensureModulesLoaded()
 
   -- Advance ELRS version polling (CRSF device-info request/response).
   if elrsModule and widget.elrsState then

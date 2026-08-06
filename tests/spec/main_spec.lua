@@ -84,4 +84,62 @@ return function(t, mock, paths)
       end)
     end)
   end)
+
+  -- Architecture & Packaging Hardening, Task 2: EdgeTX loads every
+  -- installed widget's top-level chunk whenever a model is selected, even
+  -- widgets never placed in a zone. main.lua must not load its nine
+  -- submodules until the widget is actually instantiated via create().
+  t.describe("main.lua deferred module loading (Task 2)", function()
+    local function installWithLoadScriptSpy(fn)
+      local loadScriptCalls = {}
+      mock.withInstall({
+        sensors = {},
+        loadScript = function(path)
+          loadScriptCalls[#loadScriptCalls + 1] = path
+          return loadfile(path)
+        end,
+      }, function()
+        fn(loadScriptCalls)
+      end)
+    end
+
+    t.it("does not call loadScript for any submodule before create() is invoked", function()
+      installWithLoadScriptSpy(function(loadScriptCalls)
+        local main = paths.loadWidgetModule("main.lua")
+        t.assertEqual(#loadScriptCalls, 0,
+          "main.lua's top-level chunk must not load submodules -- EdgeTX runs this chunk for every installed widget when a model is selected, even ones never placed in a zone")
+
+        main.create(ZONE, { darkTheme = 1 })
+        t.assertTrue(#loadScriptCalls > 0, "create() must trigger submodule loading")
+      end)
+    end)
+
+    t.it("loads submodules only once across repeated create()/refresh() calls", function()
+      installWithLoadScriptSpy(function(loadScriptCalls)
+        local main = paths.loadWidgetModule("main.lua")
+
+        local widget = main.create(ZONE, { darkTheme = 1 })
+        local countAfterCreate = #loadScriptCalls
+        t.assertTrue(countAfterCreate > 0, "create() must trigger submodule loading")
+
+        main.refresh(widget, nil, nil)
+        main.refresh(widget, nil, nil)
+        local secondWidget = main.create(ZONE, { darkTheme = 1 })
+        main.refresh(secondWidget, nil, nil)
+
+        t.assertEqual(#loadScriptCalls, countAfterCreate,
+          "submodules must load exactly once per Lua chunk instance, not once per create()/refresh() call")
+      end)
+    end)
+
+    t.it("still exposes name/options before create() is ever called", function()
+      installWithLoadScriptSpy(function(loadScriptCalls)
+        local main = paths.loadWidgetModule("main.lua")
+        t.assertEqual(main.name, "Telemetry Dashboard")
+        t.assertNotNil(main.options)
+        t.assertEqual(#loadScriptCalls, 0,
+          "reading name/options must not itself trigger submodule loading")
+      end)
+    end)
+  end)
 end
