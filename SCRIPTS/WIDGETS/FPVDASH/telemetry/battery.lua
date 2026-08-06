@@ -1,5 +1,5 @@
 -- Single shared cell-count/cell-voltage resolver for all battery consumers
--- (telemetry/state.lua, render/sticks.lua, render/cards.lua).
+-- (telemetry/state.lua, render/sticks.lua).
 --
 -- Safety background (Reliability & Compatibility plan, Step 3): pack
 -- voltage alone cannot reliably identify cell count. A depleted 6S pack

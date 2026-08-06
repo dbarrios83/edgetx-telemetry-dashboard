@@ -1,5 +1,5 @@
 -- Unit tests for telemetry/battery.lua: the single shared cell-count /
--- per-cell-voltage resolver used by state.lua, sticks.lua, and cards.lua.
+-- per-cell-voltage resolver used by state.lua and sticks.lua.
 --
 -- These are the regression fixtures Step 1's harness deliberately left
 -- out (see tests/spec/state_spec.lua) so they could land together with

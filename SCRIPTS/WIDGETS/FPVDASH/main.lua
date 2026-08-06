@@ -18,14 +18,12 @@ local function loadModule(relativePath)
 end
 
 local layoutModule    = loadModule("layout/layout.lua")
-local slotsModule     = loadModule("layout/slots.lua")
 local telemetryRead   = loadModule("telemetry/read.lua")
 local telemetryState  = loadModule("telemetry/state.lua")
 local elrsModule      = loadModule("telemetry/elrs.lua")
 
 local topbarRenderer  = loadModule("render/topbar.lua")
 local sticksRenderer  = loadModule("render/sticks.lua")
-local cardsRenderer   = loadModule("render/cards.lua")
 local contextRenderer = loadModule("render/context.lua")
 local timersRenderer  = loadModule("render/timers.lua")
 local footerRenderer  = loadModule("render/footer.lua")
@@ -174,14 +172,12 @@ end
 
 local function recomputeLayout(widget)
 
-  if not layoutModule or not slotsModule then
+  if not layoutModule then
     widget.layout = nil
-    widget.slots = nil
     return
   end
 
   widget.layout = layoutModule.compute(widget.zone)
-  widget.slots = slotsModule.compute(widget.layout)
 
   widget.cachedZone = {
     x = widget.zone.x,
@@ -205,7 +201,6 @@ local function create(zone, options)
     telemetry = nil,
     state = nil,
     layout = nil,
-    slots = nil,
     cachedZone = nil,
     theme = theme,
     elrsState = elrsModule and elrsModule.init() or nil,
@@ -268,7 +263,7 @@ local function refresh(widget, event, touchState)
     widget.state = nil
   end
 
-  if zoneChanged(widget) or not widget.layout or not widget.slots then
+  if zoneChanged(widget) or not widget.layout then
     recomputeLayout(widget)
   end
 
@@ -277,8 +272,11 @@ local function refresh(widget, event, touchState)
     return
   end
 
-  local theme = resolveTheme(widget.options)
-  widget.theme = theme
+  -- widget.theme is already current: create()/update() resolve it from
+  -- options whenever EdgeTX calls them, which is the only time options
+  -- can actually change. Recomputing it here every frame regardless was
+  -- pure per-frame allocation churn for a value that hadn't changed.
+  local theme = widget.theme
 
   if topbarRenderer and topbarRenderer.draw then
     drawSectionWash(widget.layout.topBar, theme)

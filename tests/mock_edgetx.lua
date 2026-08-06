@@ -86,6 +86,19 @@ function M.install(fixture)
     return fixture.rssiStream or 0, 45, 42
   end)
 
+  -- fixture.dateTime: table like { hour=14, min=5, day=3, mon=8 }, or nil
+  -- to simulate getDateTime() being unavailable.
+  setGlobal("getDateTime", function()
+    return fixture.dateTime
+  end)
+
+  -- fixture.modelName: string returned by model.getInfo().name.
+  setGlobal("model", {
+    getInfo = function()
+      return { name = fixture.modelName or "" }
+    end,
+  })
+
   setGlobal("getFlightMode", function()
     local fm = fixture.flightMode
     if fm == nil then
@@ -167,6 +180,8 @@ function M.install(fixture)
   setGlobal("GREEN", 0x07E0)
   setGlobal("CUSTOM_COLOR", 1)
   setGlobal("SMLSIZE", 0)
+  setGlobal("MIDSIZE", 4)
+  setGlobal("DBLSIZE", 8)
   setGlobal("BOOL", 1)
   setGlobal("VALUE", 2)
   -- fixture.disableCombo: simulates an EdgeTX build exposing neither

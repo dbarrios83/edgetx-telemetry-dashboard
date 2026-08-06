@@ -91,6 +91,37 @@ local BATTERY_ICONS = {
   dead = nil,
 }
 
+-- Static icon-root path lists, hoisted so ensureIconsLoaded() does not
+-- allocate them on every call (it used to build both unconditionally,
+-- before even checking whether a reload was needed).
+local ICON_ROOTS = {
+  "/WIDGETS/FPVDASH/icons/",
+  "/SCRIPTS/WIDGETS/FPVDASH/icons/",
+  "WIDGETS/FPVDASH/icons/",
+  "SCRIPTS/WIDGETS/FPVDASH/icons/",
+}
+
+local BATTERY_ICON_ROOTS = {
+  "/WIDGETS/FPVDASH/icons/battery/",
+  "/SCRIPTS/WIDGETS/FPVDASH/icons/battery/",
+  "WIDGETS/FPVDASH/icons/battery/",
+  "SCRIPTS/WIDGETS/FPVDASH/icons/battery/",
+}
+
+-- Static month abbreviations for readDateText(), hoisted so it is not
+-- rebuilt every frame.
+local MONTH_NAMES = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }
+
+-- Static candidate sensor names for readTxVoltage(), hoisted so it is
+-- not rebuilt every frame.
+local TX_VOLTAGE_SOURCE_NAMES = {
+  "tx-voltage",
+  "tx voltage",
+  "TxBt",
+  "TXBAT",
+  "A1",
+}
+
 local function openBitmapFromCandidates(roots, names)
   if not Bitmap then
     return nil
@@ -113,19 +144,12 @@ end
 local _iconsLoaded = false
 local _loadedIconFolder = nil
 
-local function ensureIconsLoaded(theme)
-  if not Bitmap or type(Bitmap.open) ~= "function" then return end
-
-  local iconFolder = (theme and theme.iconFolder) or "dark"
-
-  local roots = {
-    "/WIDGETS/FPVDASH/icons/",
-    "/SCRIPTS/WIDGETS/FPVDASH/icons/",
-    "WIDGETS/FPVDASH/icons/",
-    "SCRIPTS/WIDGETS/FPVDASH/icons/",
-  }
-
-  local themedRoots = {
+-- The only icon paths that depend on a runtime value (iconFolder), so
+-- unlike ICON_ROOTS/BATTERY_ICON_ROOTS this can't be hoisted to a pure
+-- module-level constant -- but it's still only built when actually
+-- (re)loading icons, not on every ensureIconsLoaded() call.
+local function buildThemedRoots(iconFolder)
+  return {
     "/WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
     "/SCRIPTS/WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
     "WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
@@ -135,33 +159,33 @@ local function ensureIconsLoaded(theme)
     "WIDGETS/FPVDASH/icons/",
     "SCRIPTS/WIDGETS/FPVDASH/icons/",
   }
+end
+
+local function ensureIconsLoaded(theme)
+  if not Bitmap or type(Bitmap.open) ~= "function" then return end
+
+  local iconFolder = (theme and theme.iconFolder) or "dark"
 
   if _iconsLoaded then
     if _loadedIconFolder ~= iconFolder then
       _loadedIconFolder = iconFolder
+      local themedRoots = buildThemedRoots(iconFolder)
       ICON_LINK_ON = openBitmapFromCandidates(themedRoots, { "link.png" })
       ICON_LINK_OFF = openBitmapFromCandidates(themedRoots, { "link_off.png" })
     end
     return
   end
 
-  local batteryRoots = {
-    "/WIDGETS/FPVDASH/icons/battery/",
-    "/SCRIPTS/WIDGETS/FPVDASH/icons/battery/",
-    "WIDGETS/FPVDASH/icons/battery/",
-    "SCRIPTS/WIDGETS/FPVDASH/icons/battery/",
-  }
-
-  ICON_TX_BATTERY = openBitmapFromCandidates(roots, {
+  ICON_TX_BATTERY = openBitmapFromCandidates(ICON_ROOTS, {
     "tx_battery.png",
     "battery.png",
   })
 
-  BATTERY_ICONS.full = openBitmapFromCandidates(batteryRoots, { "battery-full.png" })
-  BATTERY_ICONS.ok   = openBitmapFromCandidates(batteryRoots, { "battery-ok.png" })
-  BATTERY_ICONS.warn = openBitmapFromCandidates(batteryRoots, { "battery-warn.png" })
-  BATTERY_ICONS.low  = openBitmapFromCandidates(batteryRoots, { "battery-low.png" })
-  BATTERY_ICONS.dead = openBitmapFromCandidates(batteryRoots, { "battery-dead.png" })
+  BATTERY_ICONS.full = openBitmapFromCandidates(BATTERY_ICON_ROOTS, { "battery-full.png" })
+  BATTERY_ICONS.ok   = openBitmapFromCandidates(BATTERY_ICON_ROOTS, { "battery-ok.png" })
+  BATTERY_ICONS.warn = openBitmapFromCandidates(BATTERY_ICON_ROOTS, { "battery-warn.png" })
+  BATTERY_ICONS.low  = openBitmapFromCandidates(BATTERY_ICON_ROOTS, { "battery-low.png" })
+  BATTERY_ICONS.dead = openBitmapFromCandidates(BATTERY_ICON_ROOTS, { "battery-dead.png" })
 
   if not BATTERY_ICONS.ok then
     BATTERY_ICONS.ok = ICON_TX_BATTERY
@@ -169,13 +193,9 @@ local function ensureIconsLoaded(theme)
 
   _loadedIconFolder = iconFolder
 
-  ICON_LINK_ON = openBitmapFromCandidates(themedRoots, {
-    "link.png",
-  })
-
-  ICON_LINK_OFF = openBitmapFromCandidates(themedRoots, {
-    "link_off.png",
-  })
+  local themedRoots = buildThemedRoots(iconFolder)
+  ICON_LINK_ON = openBitmapFromCandidates(themedRoots, { "link.png" })
+  ICON_LINK_OFF = openBitmapFromCandidates(themedRoots, { "link_off.png" })
 
   _iconsLoaded = true
 end
@@ -235,16 +255,8 @@ local function readTxVoltage()
     return nil
   end
 
-  local names = {
-    "tx-voltage",
-    "tx voltage",
-    "TxBt",
-    "TXBAT",
-    "A1",
-  }
-
-  for i = 1, #names do
-    local n = toNumber(getValue(names[i]))
+  for i = 1, #TX_VOLTAGE_SOURCE_NAMES do
+    local n = toNumber(getValue(TX_VOLTAGE_SOURCE_NAMES[i]))
     if n and n >= 0 then
       return n
     end
@@ -318,7 +330,6 @@ local function readDateText()
     return "-- ---"
   end
 
-  local months = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }
   local monthToken = dt.mon
   if monthToken == nil then
     monthToken = dt.month
@@ -326,7 +337,7 @@ local function readDateText()
 
   local monthText = "---"
   if type(monthToken) == "number" then
-    monthText = months[monthToken] or "---"
+    monthText = MONTH_NAMES[monthToken] or "---"
   elseif type(monthToken) == "string" and monthToken ~= "" then
     monthText = monthToken:sub(1, 3)
   end
