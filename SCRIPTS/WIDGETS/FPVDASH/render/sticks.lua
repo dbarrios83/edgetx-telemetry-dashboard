@@ -303,9 +303,16 @@ end
 local function batteryIconKey(telemetry, state)
   local cellV = telemetry and telemetry.batteryCellVoltage
   if type(cellV) ~= "number" or cellV <= 0 then
-    -- Unknown/unresolved: keep prior placeholder-icon behavior rather
-    -- than guessing a state.
-    return "ok"
+    -- Unknown/unresolved: no icon at all (see BATTERY_ICONS -- "unknown"
+    -- has no entry, so drawRxBatterySection's `if icon then` skips it).
+    -- Found via Step 11 simulator testing: this used to return "ok",
+    -- drawing a green/full battery icon next to the "--.--V" placeholder
+    -- text -- a genuinely misleading combination for a safety-relevant
+    -- indicator, since it visually asserted the pack was fine when the
+    -- voltage was actually unknown. No existing icon asset represents
+    -- "unknown" (only full/ok/warn/low/dead), so omitting the icon
+    -- entirely is the only option that doesn't assert something false.
+    return "unknown"
   end
 
   -- LiHV-aware per-cell thresholds.

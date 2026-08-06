@@ -149,6 +149,7 @@ function M.install(fixture)
     drawFilledRectangle = recordCall("drawFilledRectangle"),
     drawRectangle = recordCall("drawRectangle"),
     drawBitmap = recordCall("drawBitmap"),
+    drawLine = recordCall("drawLine"),
     setColor = recordCall("setColor"),
   })
 
