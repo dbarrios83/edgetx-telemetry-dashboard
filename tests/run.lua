@@ -20,38 +20,8 @@ local paths = dofile(HERE .. "paths.lua")
 local t = dofile(HERE .. "testkit.lua")
 local mock = dofile(HERE .. "mock_edgetx.lua")
 
-local IS_WINDOWS = package.config:sub(1, 1) == "\\"
-
--- Recursively lists files under `dir` matching `pattern`, using the host
--- shell (dir/s/b on Windows, find on everything else). No third-party Lua
--- modules (e.g. luafilesystem) required.
-local function listFiles(dir, pattern)
-  local files = {}
-  local handle
-  if IS_WINDOWS then
-    handle = io.popen(string.format('dir "%s" /s /b /a:-d 2>NUL', dir))
-  else
-    handle = io.popen(string.format("find '%s' -type f 2>/dev/null", dir))
-  end
-
-  if not handle then
-    return files
-  end
-
-  for line in handle:lines() do
-    local clean = line:gsub("[\r\n]+$", "")
-    if clean ~= "" and clean:match(pattern) then
-      files[#files + 1] = clean
-    end
-  end
-  handle:close()
-
-  table.sort(files)
-  return files
-end
-
 local function syntaxCheckWidgetFiles()
-  local files = listFiles(paths.WIDGET_DIR, "%.lua$")
+  local files = paths.listFiles(paths.WIDGET_DIR, "%.lua$")
 
   t.describe("syntax check: every widget .lua file loads without a syntax error", function()
     for _, file in ipairs(files) do
@@ -68,7 +38,7 @@ local function syntaxCheckWidgetFiles()
 end
 
 local function runSpecs()
-  local specFiles = listFiles(paths.SPEC_DIR, "%.lua$")
+  local specFiles = paths.listFiles(paths.SPEC_DIR, "%.lua$")
 
   for _, file in ipairs(specFiles) do
     local specFn, loadErr = loadfile(file)

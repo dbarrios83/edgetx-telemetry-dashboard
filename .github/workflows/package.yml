@@ -1,0 +1,57 @@
+name: Package
+
+# Builds the SD-card-ready FPVDASH release zip on every push/PR (as a
+# downloadable build artifact, so a reviewer can grab it and test in
+# EdgeTX Companion without checking out the branch), and attaches it to
+# a GitHub Release when a "v*" tag is pushed.
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Lua
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
+
+      - name: Run test harness (includes release/packaging structural checks)
+        run: lua5.4 tests/run.lua
+
+      - name: Build release zip
+        run: |
+          mkdir -p dist
+          # -X drops extra file attributes (extended timestamps, etc.) so
+          # the archive's metadata doesn't vary run-to-run; the file set
+          # itself is always exactly SCRIPTS/WIDGETS/FPVDASH's contents,
+          # nothing more or less, matching the manual "copy the FPVDASH
+          # folder into /WIDGETS/" step in README.md's Installation Steps.
+          cd SCRIPTS/WIDGETS
+          zip -rX ../../dist/FPVDASH.zip FPVDASH
+          cd ../..
+          echo "Archive contents:"
+          unzip -l dist/FPVDASH.zip
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FPVDASH
+          path: dist/FPVDASH.zip
+          if-no-files-found: error
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" dist/FPVDASH.zip \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            --repo "${{ github.repository }}"
