@@ -89,11 +89,21 @@ linkQuality > 0 OR txPower > 0 OR packetRate > 0`.
 
 | # | Scenario | Sensors set | Expected | Pass/Fail | Screenshot |
 |---|---|---|---|---|---|
-| 1 | Healthy ELRS link | RQly=98, RFMD, TPWR all live | Connected, all cards show live values | | |
+| 1 | Healthy ELRS link | RQly=98, RFMD, TPWR all live | Connected, all cards show live values | **Pass** (2026-08-06) | |
 | 2 | No telemetry at all | Simulator telemetry off / no sensors | Disconnected: link icon shows "off" state, cards show placeholders (`--`, `N/A`), not stale or fabricated values | | Yes |
 | 3 | Generic-only telemetry, no ELRS fields | VFAS, Curr, GPS, RSSI live; RQly/TPWR/RFMD never discovered | **Connected** (via `getRSSI()`, not the ELRS-specific fields) — this is the exact Step 7 fix; confirm it visually, not just in the unit test | | Yes |
-| 4 | Valid LQ=0 while otherwise connected | RQly=0 (a real, critical reading), other generic sensors live, telemetry still streaming | Connected stays true; LQ card shows critical/red at 0%, not "disconnected" | | Yes |
+| 4 | ~~Valid LQ=0 while otherwise connected~~ (retired, see below) | | | N/A | |
 | 5 | Loss → reconnect | Start connected, kill telemetry, wait, restore telemetry | Widget transitions to disconnected within a couple of frames, then fully restores on reconnect with **no stale intermediate frame** showing old values | | Yes (before/during/after) |
+
+**Row 4 retired (2026-08-06):** this row assumed `getRSSI()` stays
+nonzero independently of a CRSF LQ=0 reading. Simulator testing showed
+LQ=0 disconnects the whole widget, and tracing EdgeTX firmware
+(`radio/src/telemetry/crossfire.cpp`) confirmed why: for CRSF, the flag
+`getRSSI()` reads is set/cleared by the *same* Link Statistics value as
+the LQ sensor, so they aren't independent for this protocol. What you
+saw is EdgeTX's own correct behavior, not a widget bug — see
+compatibility-matrix.md Section 7 for the full writeup. No retest
+needed; this was a documentation/checklist error, not a code issue.
 
 ## 3. Battery cell-count boundaries (Step 3 — safety-critical)
 
@@ -111,17 +121,20 @@ would have failed.
 
 ## 4. RFMD packet-rate decoding (Step 5)
 
-Per compatibility-matrix.md Section 4 and `tests/spec/read_spec.lua`.
-Requires the simulator to actually send a CRSF device-info response so
-`telemetry/elrs.lua` resolves an ELRS major version — confirm the
-footer/RFMD card only starts decoding *after* that exchange completes,
-not immediately on connect.
+**Confirmed not testable in the Companion simulator (2026-08-06).**
+Decoding requires `telemetry/elrs.lua` to resolve an ELRS major version
+via a live CRSF device-info request/response (`0x28`/`0x29`) with a real
+RF module — the simulator has none to answer, so the version never
+resolves. Confirmed behavior in that state: footer shows bare `ELRS`
+(no version number), RFMD card shows the placeholder (`--`/`N/A`) — the
+unresolved-version fallback working exactly as designed, not a bug.
+Rows below can only be exercised on the real-radio smoke test.
 
 | # | ELRS version | RFMD value | Expected packet rate | Pass/Fail |
 |---|---|---|---|---|
-| 1 | 3.x | 9 | 500 Hz | |
-| 2 | 4.x | 4 | 150 Hz (900MHz range) | |
-| 3 | 4.x | 29 | 500 Hz (2.4GHz range) | |
+| 1 | 3.x | 9 | 500 Hz | Real radio only |
+| 2 | 4.x | 4 | 150 Hz (900MHz range) | Real radio only |
+| 3 | 4.x | 29 | 500 Hz (2.4GHz range) | Real radio only |
 | 4 | 4.x | 101 | 150 Hz (dual-band range) | |
 | 5 | 3.x **and** 4.x | 4 | **Different rates** (100Hz on 3.x, 150Hz on 4.x) — confirm the same raw index really does decode differently by version, the exact ambiguity Step 5 fixed | |
 | 6 | Either | 0 | Unavailable (`--`/`N/A`), never a rate | |

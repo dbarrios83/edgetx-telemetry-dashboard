@@ -256,12 +256,44 @@ unavailable or behaves unexpectedly on a given firmware build —
 `getRSSI()` has been documented since EdgeTX 2.2.0, well within the 2.12+
 floor from Section 1, so this should rarely matter in practice.
 
-A genuinely critical LQ reading of exactly `0` is a valid, real
-telemetry value (see `evaluateLinkQuality` in `telemetry/state.lua`,
-which already classifies it CRITICAL rather than UNKNOWN) and must not
-be confused with "no telemetry at all" — `getRSSI()` and the LQ sensor
-are independent signals, so LQ=0 while `getRSSI() > 0` still resolves to
-connected.
+**Correction found during Step 11 simulator testing (2026-08-06):** an
+earlier version of this section claimed `getRSSI()` and the LQ sensor
+are independent signals, so a real LQ=0 reading would not be confused
+with "no telemetry at all." That is **not true for CRSF/ExpressLRS.**
+Checking where EdgeTX firmware actually sets `telemetryStreaming` (the
+flag `getRSSI()` reads) shows it is driven by the *same* value as the
+LQ sensor for CRSF specifically:
+
+```c
+// radio/src/telemetry/crossfire.cpp, LINK_ID frame handling
+if (i == RX_QUALITY_INDEX) {
+  if (value) {
+    telemetryData.rssi.set(value);
+    telemetryStreaming = TELEMETRY_TIMEOUT10ms;
+    telemetryData.telemetryValid |= 1 << module;
+  } else {
+    if (telemetryData.telemetryValid & (1 << module)) {
+      telemetryData.rssi.reset();
+      telemetryStreaming = 0;
+    }
+  }
+}
+```
+
+So on a real ELRS radio, when LQ genuinely hits 0, `getRSSI()` goes to 0
+in the same instant, for the same reason — they are not independent for
+this protocol, and the widget correctly shows disconnected in that
+state (confirmed via simulator testing, matching a real-radio LQ=0
+reading in principle, since this is protocol logic, not simulator-only
+behavior). `getRSSI()` still earns its place in the OR-condition for two
+things that remain real and confirmed:
+- **Non-CRSF protocols.** FrSky S.Port tracks a dedicated `RSSI_ID`
+  sensor independently of LQ (`radio/src/telemetry/frsky_sport.cpp`), so
+  `getRSSI()` genuinely can stay nonzero there even if a model's LQ-style
+  field isn't discovered.
+- **The primary Step 7 scenario:** a model exposing generic sensors
+  (VFAS/current/GPS) with **no** LQ/TX power/RFMD ever discovered at
+  all — confirmed working via simulator testing.
 
 When disconnected, `packetRate`/`available.packetRate` are explicitly
 reset so a stale rate never renders; every renderer additionally gates

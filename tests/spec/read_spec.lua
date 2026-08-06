@@ -202,10 +202,17 @@ return function(t, mock, paths)
       end)
     end)
 
-    t.it("a valid LQ=0 reading stays connected via getRSSI() and does not mask other live telemetry", function()
-      -- LQ genuinely at 0 (a real, critical reading) must not be
-      -- confused with "no telemetry at all" when the streaming flag
-      -- and other sensors show the link is actually still up.
+    t.it("the OR-condition mechanism: a live getRSSI() keeps connected=true even with LQ=0", function()
+      -- This exercises the OR logic itself, not a claim about real CRSF
+      -- hardware: on an actual ELRS link, EdgeTX's telemetryStreaming
+      -- (what getRSSI() reads) is set/cleared by the same CRSF Link
+      -- Statistics value as the LQ sensor (radio/src/telemetry/
+      -- crossfire.cpp), so LQ=0 and getRSSI()=0 happen together for
+      -- CRSF -- confirmed via Step 11 simulator testing, see
+      -- compatibility-matrix.md Section 7. getRSSI() staying live while
+      -- LQ=0 is a real, independent condition for non-CRSF protocols
+      -- (e.g. FrSky S.Port's separate RSSI_ID sensor), which this test
+      -- fixture represents.
       mock.withInstall({
         sensors = {
           VFAS = { value = 14.5 },
