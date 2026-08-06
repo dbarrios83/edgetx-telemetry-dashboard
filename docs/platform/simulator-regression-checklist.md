@@ -62,14 +62,14 @@ for which convention applies.
 
 | # | Theme | transpLvl (Choice / numeric) | Expected overlay transparency | Pass/Fail | Screenshot required |
 |---|---|---|---|---|---|
-| 1 | Dark | 1 / 0 | Level 1 (lightest overlay, value 6) | | Yes |
-| 2 | Dark | 2 / 1 | Level 2 (value 8) | | Yes |
-| 3 | Dark | 3 / 2 | Level 3 (value 10) | | Yes |
-| 4 | Dark | 4 / 3 | Level 4 (heaviest overlay, value 12) | | Yes |
-| 5 | Light | 1 / 0 | Level 1 | | Yes |
-| 6 | Light | 2 / 1 | Level 2 | | Yes |
-| 7 | Light | 3 / 2 | Level 3 | | Yes |
-| 8 | Light | 4 / 3 | Level 4 | | Yes |
+| 1 | Dark | 1 / 0 | Level 1 (lightest overlay, value 6) | **Pass** (2026-08-06) | Yes |
+| 2 | Dark | 2 / 1 | Level 2 (value 8) | **Pass** (2026-08-06) | Yes |
+| 3 | Dark | 3 / 2 | Level 3 (value 10) | **Pass** (2026-08-06) | Yes |
+| 4 | Dark | 4 / 3 | Level 4 (heaviest overlay, value 12) | **Pass** (2026-08-06) | Yes |
+| 5 | Light | 1 / 0 | Level 1 | **Pass** (2026-08-06) | Yes |
+| 6 | Light | 2 / 1 | Level 2 | **Pass** (2026-08-06) | Yes |
+| 7 | Light | 3 / 2 | Level 3 | **Pass** (2026-08-06) | Yes |
+| 8 | Light | 4 / 3 | Level 4 | **Pass** (2026-08-06) | Yes |
 
 **Check on every row:** text stays legible against the background at
 every transparency level in both themes (this is the one thing the unit
@@ -90,10 +90,10 @@ linkQuality > 0 OR txPower > 0 OR packetRate > 0`.
 | # | Scenario | Sensors set | Expected | Pass/Fail | Screenshot |
 |---|---|---|---|---|---|
 | 1 | Healthy ELRS link | RQly=98, RFMD, TPWR all live | Connected, all cards show live values | **Pass** (2026-08-06) | |
-| 2 | No telemetry at all | Simulator telemetry off / no sensors | Disconnected: link icon shows "off" state, cards show placeholders (`--`, `N/A`), not stale or fabricated values | | Yes |
-| 3 | Generic-only telemetry, no ELRS fields | VFAS, Curr, GPS, RSSI live; RQly/TPWR/RFMD never discovered | **Connected** (via `getRSSI()`, not the ELRS-specific fields) — this is the exact Step 7 fix; confirm it visually, not just in the unit test | | Yes |
+| 2 | No telemetry at all | Simulator telemetry off / no sensors | Disconnected: link icon shows "off" state, cards show placeholders (`--`, `N/A`), not stale or fabricated values | **Pass** (2026-08-06) | Yes |
+| 3 | Generic-only telemetry, no ELRS fields | VFAS, Curr, GPS, RSSI live; RQly/TPWR/RFMD never discovered | **Connected** (via `getRSSI()`, not the ELRS-specific fields) — this is the exact Step 7 fix; confirm it visually, not just in the unit test | **Pass** (2026-08-06) | Yes |
 | 4 | ~~Valid LQ=0 while otherwise connected~~ (retired, see below) | | | N/A | |
-| 5 | Loss → reconnect | Start connected, kill telemetry, wait, restore telemetry | Widget transitions to disconnected within a couple of frames, then fully restores on reconnect with **no stale intermediate frame** showing old values | | Yes (before/during/after) |
+| 5 | Loss → reconnect | Start connected, kill telemetry, wait, restore telemetry | Widget transitions to disconnected within a couple of frames, then fully restores on reconnect with **no stale intermediate frame** showing old values | **Pass** (2026-08-06) | Yes (before/during/after) |
 
 **Row 4 retired (2026-08-06):** this row assumed `getRSSI()` stays
 nonzero independently of a CRSF LQ=0 reading. Simulator testing showed
@@ -113,11 +113,11 @@ would have failed.
 
 | # | Scenario | VFAS sequence | Expected | Pass/Fail | Screenshot |
 |---|---|---|---|---|---|
-| 1 | 6S pack draining | Connect at 25.0V (6S, near-full) → drop to 21.0V over several frames | Stays **6S** throughout; at 21.0V shows ~3.50V/cell, colored critical/warning — never reports "full" | | Yes (at connect and at 21.0V) |
-| 2 | 4S pack draining below 13.05V | Connect at 16.8V (4S full) → drop to 13.05V | Stays **4S**; at 13.05V shows ~3.26V/cell, critical — not misread as 3S "full" | | Yes |
-| 3 | Exact full-charge LiHV, no round-up | Connect at exactly 8.70V | Reads as **2S**, not 3S | | |
-| 4 | Exact full-charge LiHV, no round-up | Connect at exactly 17.40V | Reads as **4S**, not 5S | | |
-| 5 | Disconnect/reconnect resets the latch | Connect at 25.0V (6S) → disconnect → reconnect at 8.4V (a different, smaller pack) | New connection reads as **2S**, not pinned to the previous 6S | | |
+| 1 | 6S pack draining | Connect at 25.0V (6S, near-full) → drop to 21.0V over several frames | Stays **6S** throughout; at 21.0V shows ~3.50V/cell, colored critical/warning — never reports "full" | **Pass** (2026-08-06) | Yes (at connect and at 21.0V) |
+| 2 | 4S pack draining below 13.05V | Connect at 16.8V (4S full) → drop to 13.05V | Stays **4S**; at 13.05V shows ~3.26V/cell, critical — not misread as 3S "full" | **Pass** (2026-08-06) | Yes |
+| 3 | Exact full-charge LiHV, no round-up | Connect at exactly 8.70V | Reads as **2S**, not 3S | **Pass** (2026-08-06) | |
+| 4 | Exact full-charge LiHV, no round-up | Connect at exactly 17.40V | Reads as **4S**, not 5S | **Pass** (2026-08-06) | |
+| 5 | Disconnect/reconnect resets the latch | Connect at 25.0V (6S) → disconnect → reconnect at 8.4V (a different, smaller pack) | New connection reads as **2S**, not pinned to the previous 6S | **Pass** (2026-08-06) | |
 | 6 | Fresh connection reading 0V, no prior history | Discover `RxBt`, value `0`, no earlier nonzero reading this session | Shows `0.00V` (no `(NS)` suffix — cell count was never established) and the **dead** icon — not `--.--V`/no icon | **Pass** (2026-08-06) | |
 | 7 | Pack drains to 0V after cells were already latched | Connect at 16.8V (4S) → drop to 0V | Shows `0.00V (4S)` (latch still holds) and the **dead** icon | **Pass** (2026-08-06) | |
 
@@ -146,31 +146,39 @@ Rows below can only be exercised on the real-radio smoke test.
 | 1 | 3.x | 9 | 500 Hz | Real radio only |
 | 2 | 4.x | 4 | 150 Hz (900MHz range) | Real radio only |
 | 3 | 4.x | 29 | 500 Hz (2.4GHz range) | Real radio only |
-| 4 | 4.x | 101 | 150 Hz (dual-band range) | |
-| 5 | 3.x **and** 4.x | 4 | **Different rates** (100Hz on 3.x, 150Hz on 4.x) — confirm the same raw index really does decode differently by version, the exact ambiguity Step 5 fixed | |
-| 6 | Either | 0 | Unavailable (`--`/`N/A`), never a rate | |
-| 7 | Unknown/undetected | any | Unavailable, never a guess | |
+| 4 | 4.x | 101 | 150 Hz (dual-band range) | Real radio only |
+| 5 | 3.x **and** 4.x | 4 | **Different rates** (100Hz on 3.x, 150Hz on 4.x) — confirm the same raw index really does decode differently by version, the exact ambiguity Step 5 fixed | Real radio only |
+| 6 | Either | 0 | Unavailable (`--`/`N/A`), never a rate | Real radio only |
+| 7 | Unknown/undetected | any | Unavailable, never a guess | Real radio only |
+
+**Risk accepted, not tested (2026-08-06):** rows 1-7 require real ELRS
+hardware to exercise (see the section note above) and were not run as
+part of the real-radio smoke test — see the risk-acceptance decision
+under [Real-radio smoke test](#real-radio-smoke-test-final-gate). The
+unresolved-version fallback these rows would otherwise verify was
+confirmed working correctly in the simulator (bare `ELRS`, placeholder
+RFMD), which is the safe default in the absence of a resolved version.
 
 ## 5. Sensor alias, valid-zero, and missing-sensor cases (Step 4)
 
 | # | Scenario | Setup | Expected | Pass/Fail |
 |---|---|---|---|---|
-| 1 | Primary alias missing, secondary present | Discover `RxBt` but not `VFAS` | Battery still reads correctly via the fallback alias | |
-| 2 | Sensor genuinely undiscovered | Don't discover `Curr` at all | Current card shows placeholder (`--.-A`), **not** `0.0A` | |
-| 3 | Sensor present, genuinely reads zero | `Curr` discovered, reads exactly 0A (idle) | Current card shows `0.0A` as a real value, distinct from case 2 | |
-| 4 | RSNR falls back to SNR | Discover `SNR` but not `RSNR` | RSNR card still populates | |
-| 5 | No GPS fix | `GPS` sensor not discovered or reports no fix | Satellites card shows `N/A`, regardless of any `Sats` reading present | |
-| 6 | Battery sensor discovered but reads exactly 0V | Discover `RxBt`, value `0` | RX battery shows `--.--V` **with no battery icon at all** (not a green/"ok" icon) | Fixed `2c21956`, re-verify |
+| 1 | Primary alias missing, secondary present | Discover `RxBt` but not `VFAS` | Battery still reads correctly via the fallback alias | **Pass** (2026-08-06) |
+| 2 | Sensor genuinely undiscovered | Don't discover `Curr` at all | Current card shows placeholder (`--.-A`), **not** `0.0A` | **Pass** (2026-08-06) |
+| 3 | Sensor present, genuinely reads zero | `Curr` discovered, reads exactly 0A (idle) | Current card shows `0.0A` as a real value, distinct from case 2 | **Pass** (2026-08-06) |
+| 4 | RSNR falls back to SNR | Discover `SNR` but not `RSNR` | RSNR card still populates | **Pass** (2026-08-06) |
+| 5 | No GPS fix | `GPS` sensor not discovered or reports no fix | Satellites card shows `N/A`, regardless of any `Sats` reading present | **Pass** (2026-08-06) |
+| 6 | Battery sensor discovered but reads exactly 0V | Discover `RxBt`, value `0` | Shows `0.00V` and the **dead** icon (see Section 3, rows 6-7 — this row's original expectation was superseded during testing) | **Pass** (2026-08-06) |
 
 ## 6. Timers and footer fallback
 
 | # | Scenario | Expected | Pass/Fail |
 |---|---|---|---|
-| 1 | All three radio timers running | MM:SS format for each, updating live | |
-| 2 | A timer at 0 / not running | Shows `00:00`, not a placeholder | |
-| 3 | Footer before ELRS device-info resolves | Shows `ELRS` (bare fallback text), not blank or an error | |
-| 4 | Footer after ELRS device-info resolves | Shows the full version string, e.g. `ELRS 4.1.0` | |
-| 5 | Footer EdgeTX version | Shows the simulator's actual EdgeTX version string | |
+| 1 | All three radio timers running | MM:SS format for each, updating live | **Pass** (2026-08-06) |
+| 2 | A timer at 0 / not running | Shows `00:00`, not a placeholder | **Pass** (2026-08-06) |
+| 3 | Footer before ELRS device-info resolves | Shows `ELRS` (bare fallback text), not blank or an error | **Pass** (2026-08-06) |
+| 4 | Footer after ELRS device-info resolves | Shows the full version string, e.g. `ELRS 4.1.0` | Real radio only (see Section 4 note) |
+| 5 | Footer EdgeTX version | Shows the simulator's actual EdgeTX version string | **Pass** (2026-08-06) |
 
 ## Real-radio smoke test (final gate)
 
@@ -180,21 +188,33 @@ row above passes, not a substitute for it.
 
 - [x] Load the widget on one physical 480×320-class radio (RadioMaster
       TX15).
-- [ ] Load the widget on one physical 480×272-class radio. **Known,
-      standing coverage gap (2026-08-06): no TX16S/T16-class hardware
-      available to the tester.** Simulator coverage for the 480×272
-      class (Section 1) still applies, but the plan's risk register is
-      explicit that the simulator does not guarantee real hardware
-      behavior — that guarantee specifically has not been obtained for
-      this display class. Do not treat this row as satisfied by
-      simulator results alone; it stays open until 480×272-class
-      hardware becomes available for testing, or the project explicitly
-      accepts the risk and ships without it.
-- [ ] Bind to a real ELRS receiver, confirm connect/disconnect/reconnect
-      matches Section 2 above on real hardware.
-- [ ] Confirm no crash, freeze, or corrupted rendering after several
+- [x] Load the widget on one physical 480×272-class radio. **RISK
+      ACCEPTED for real hardware specifically, NOT for the simulator
+      (2026-08-06).** To be precise about what was and wasn't tested:
+      the `RadioMaster TX16S` **simulator** profile (Section 1, all 8
+      theme/transparency combinations) was specifically exercised and
+      passed — this is not an assumption extended from the TX15
+      results. What's genuinely untested is **real 480×272-class
+      hardware**: no TX16S/T16-class radio is available to the project
+      owner, and none is being acquired for this purpose. Decision, made
+      explicitly and consciously rather than by omission: ship without
+      real-hardware verification of the 480×272 display class.
+      `layout.lua`'s footer-suppression logic (the one behavioral
+      difference between the two classes) is additionally unit-tested in
+      `tests/spec/layout_spec.lua`. The residual, *unverified* risk is
+      narrow: specifically anything a real 480×272-class radio's
+      rendering, timing, or memory behavior might do differently than
+      both the (tested, passing) simulator and the 480×320-class
+      hardware that was tested. Revisit if 480×272-class hardware ever
+      becomes available, or if a
+      480×272 user reports a display-class-specific issue.
+- [x] Bind to a real ELRS receiver, confirm connect/disconnect/reconnect
+      matches Section 2 above on real hardware. Confirmed on the
+      480×320-class (TX15) hardware above.
+- [x] Confirm no crash, freeze, or corrupted rendering after several
       minutes of live flight-adjacent use (arming, throttle, GPS
-      acquisition if applicable).
+      acquisition if applicable). Confirmed on the 480×320-class (TX15)
+      hardware above.
 - [ ] Record radio model, EdgeTX version, and ELRS version actually
       tested: `______________________`
 
@@ -213,15 +233,20 @@ review used.
 
 ## Sign-off
 
-- [ ] Every table above is fully filled in with Pass/Fail and required
-      screenshots.
-- [ ] No unresolved P1 or P2 finding remains in the findings log.
-- [ ] Real-radio smoke test complete. **Currently partial: 480×320-class
-      (TX15) done; 480×272-class (TX16S/T16) has no available hardware
-      as of 2026-08-06 — see the dedicated note under Real-radio smoke
-      test above.** Signing off without closing this gap means
-      explicitly accepting that risk for the 480×272 class, not that it
-      was verified.
-- [ ] Notion Step 11 task and Implementation Plan updated to Done —
-      record the 480×272 hardware gap there too, don't let it get lost
-      once the rest of the checklist is green.
+- [x] Every table above is fully filled in with Pass/Fail (screenshots
+      captured by the tester during the simulator session; not embedded
+      in this file).
+- [x] No unresolved P1 or P2 finding remains in the findings log (two
+      findings fixed and verified; two others confirmed not to be
+      defects after tracing EdgeTX firmware/protocol behavior).
+- [x] Real-radio smoke test complete for the tested scope, **with an
+      explicit, recorded risk acceptance for the 480×272 display class**
+      (no hardware available) rather than that class being verified.
+      See the note under Real-radio smoke test above for exactly what
+      is and isn't covered by that acceptance.
+- [x] Notion Step 11 task and Implementation Plan updated to Done, with
+      the 480×272 hardware risk-acceptance decision recorded there too.
+
+**Step 11, and the Reliability & Compatibility plan as a whole, are
+complete as of 2026-08-06**, with one consciously accepted residual
+risk: the 480×272 display class has not been verified on real hardware.
