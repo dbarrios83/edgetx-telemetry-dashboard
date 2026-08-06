@@ -9,7 +9,10 @@ This guide explains how to install and configure the `FPVDASH` widget from this 
 
 ## Prerequisites
 
-1. EdgeTX firmware installed on your radio.
+1. EdgeTX firmware **2.12 or later** installed on your radio (see
+   [docs/platform/compatibility-matrix.md](docs/platform/compatibility-matrix.md)
+   for per-radio version details — RadioMaster TX15 and Jumper T15 Pro
+   specifically require 2.12).
 2. A valid EdgeTX SD card contents pack for your firmware version.
 3. In Betaflight, enable **Telemetry Output** in the **Receiver** tab.
 
@@ -79,7 +82,7 @@ If the screen is not in `App Mode`, the widget may not load or may not render co
 - Model name and TX battery (top bar)
 - Link status and key telemetry indicators
 - Stick monitor
-- Context telemetry grid (current, power, RF mode/packet rate, RSSI, satellites, antenna, flight mode)
+- Context telemetry grid (current, packet rate, TX power, RSSI, satellites, flight mode, RSNR, consumed capacity)
 - Timers row
 - Footer with ELRS version and EdgeTX version
 
