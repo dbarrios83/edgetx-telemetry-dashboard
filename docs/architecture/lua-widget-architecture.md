@@ -256,7 +256,10 @@ Pseudo-flow:
 
 ```lua
 function refresh(widget, event, touchState)
-    local telemetry = telemetryRead.snapshot(elrsMajorVersion)
+    -- widget.telemetrySession is created once per widget instance in
+    -- create() (telemetryRead.init()) and must never be shared between
+    -- instances -- see Section 8.2.
+    local telemetry = telemetryRead.snapshot(widget.telemetrySession, elrsMajorVersion)
     local state = telemetryState.evaluate(telemetry)
 
     local layout = layoutModule.compute(widget.zone)
@@ -270,6 +273,50 @@ end
 ```
 
 This pipeline keeps rendering logic deterministic and predictable.
+
+## 8.2 Per-Instance State Ownership
+
+**Status: implemented (Architecture & Packaging Hardening project, Task 3,
+2026-08-06).**
+
+EdgeTX shares a widget script's file-scope (module-level) Lua locals
+across every instance of that widget -- if `main.lua` is placed in two
+zones, both instances execute the same loaded chunk and see the same
+module-level variables. A module that keeps mutable per-session state in
+a file-scope local (rather than on the `widget` table `create()`
+returns) will have that state corrupted the moment a second instance
+exists.
+
+Two categories of module state exist in this codebase, and they are
+treated differently:
+
+- **Shared code, safe to keep at module scope:** `layout/layout.lua` and
+  every `render/*.lua` module are pure/stateless -- they take their
+  inputs as arguments and hold no mutable state between calls. Loading
+  one shared copy per widget script (not per instance) is both correct
+  and desirable; see Section 8's deferred-loading discussion in
+  `main.lua`.
+- **Mutable per-instance state, must live on the widget table:**
+  `telemetry/read.lua`'s sensor-ID cache and rescan counter, and
+  `telemetry/battery.lua`'s latched cell count, previously lived as
+  module-level locals. They now follow the same explicit-state-object
+  shape `telemetry/elrs.lua` already used for its CRSF device-info
+  polling state:
+  - `telemetryRead.init()` / `batteryModule.init()` return a fresh state
+    table, called once per widget instance in `create()` and stored on
+    the returned `widget` table (`widget.telemetrySession`, alongside
+    the existing `widget.elrsState`).
+  - `telemetryRead.snapshot(session, elrsMajorVersion)` and
+    `batteryModule.resolve(state, voltage, explicitCells)` /
+    `batteryModule.reset(state)` take that state as an explicit
+    argument rather than reading/writing a module-level local.
+
+A new widget instance created mid-session (e.g. a second zone added
+after telemetry is already connected and partially into a flight) starts
+with a fresh, empty session -- it does not inherit another instance's
+already-discovered sensors or already-latched pack size. See
+`tests/spec/main_spec.lua`'s "per-instance telemetry state isolation"
+tests for the exact regression scenario this fixes.
 
 ## 9. Dependency Boundaries
 Dependency rules:

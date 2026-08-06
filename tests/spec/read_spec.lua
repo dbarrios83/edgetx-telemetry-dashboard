@@ -6,7 +6,8 @@ return function(t, mock, paths)
     t.it("prefers the primary alias when both primary and secondary are present", function()
       mock.withInstall(paths.loadFixture("connected"), function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        local snap = read.snapshot()
+        local session = read.init()
+        local snap = read.snapshot(session)
 
         t.assertTrue(snap.available.battery)
         t.assertEqual(snap.battery, 16.8) -- from VFAS
@@ -17,7 +18,8 @@ return function(t, mock, paths)
     t.it("falls back to the secondary alias when the primary is not discovered", function()
       mock.withInstall(paths.loadFixture("absent_sensor"), function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        local snap = read.snapshot()
+        local session = read.init()
+        local snap = read.snapshot(session)
 
         -- VFAS is absent in this fixture; RxBt must be used instead.
         t.assertTrue(snap.available.battery)
@@ -34,7 +36,8 @@ return function(t, mock, paths)
     t.it("marks a field unavailable when no alias resolves, rather than reporting zero", function()
       mock.withInstall(paths.loadFixture("absent_sensor"), function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        local snap = read.snapshot()
+        local session = read.init()
+        local snap = read.snapshot(session)
 
         -- Capacity has no sensor defined anywhere in this fixture.
         t.assertFalse(snap.available.capacity)
@@ -45,7 +48,8 @@ return function(t, mock, paths)
     t.it("keeps a real zero reading available and distinct from an absent sensor", function()
       mock.withInstall(paths.loadFixture("valid_zero"), function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        local snap = read.snapshot()
+        local session = read.init()
+        local snap = read.snapshot(session)
 
         t.assertTrue(snap.available.current)
         t.assertEqual(snap.current, 0)
@@ -63,7 +67,8 @@ return function(t, mock, paths)
       local snap
       mock.withInstall(fixture, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        snap = read.snapshot(elrsMajorVersion)
+        local session = read.init()
+        snap = read.snapshot(session, elrsMajorVersion)
       end)
       return snap
     end
@@ -126,14 +131,16 @@ return function(t, mock, paths)
     t.it("reports connected when link quality is live", function()
       mock.withInstall(paths.loadFixture("connected"), function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        t.assertTrue(read.snapshot().connected)
+        local session = read.init()
+        t.assertTrue(read.snapshot(session).connected)
       end)
     end)
 
     t.it("reports disconnected when LQ, TX power, and packet rate are all zero", function()
       mock.withInstall(paths.loadFixture("disconnected"), function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        t.assertFalse(read.snapshot().connected)
+        local session = read.init()
+        t.assertFalse(read.snapshot(session).connected)
       end)
     end)
 
@@ -152,7 +159,8 @@ return function(t, mock, paths)
         rssiStream = 70,
       }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        t.assertTrue(read.snapshot().connected)
+        local session = read.init()
+        t.assertTrue(read.snapshot(session).connected)
       end)
     end)
 
@@ -165,7 +173,8 @@ return function(t, mock, paths)
         rssiStream = 0,
       }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        t.assertFalse(read.snapshot().connected)
+        local session = read.init()
+        t.assertFalse(read.snapshot(session).connected)
       end)
     end)
 
@@ -176,12 +185,13 @@ return function(t, mock, paths)
       }
       mock.withInstall(fixture, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        t.assertTrue(read.snapshot().connected)
+        local session = read.init()
+        t.assertTrue(read.snapshot(session).connected)
 
         -- Link drops: both the ELRS signal and the streaming flag fall.
         fixture.sensors.RQly.value = 0
         fixture.rssiStream = 0
-        t.assertFalse(read.snapshot().connected)
+        t.assertFalse(read.snapshot(session).connected)
       end)
     end)
 
@@ -192,11 +202,12 @@ return function(t, mock, paths)
       }
       mock.withInstall(fixture, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        t.assertFalse(read.snapshot().connected)
+        local session = read.init()
+        t.assertFalse(read.snapshot(session).connected)
 
         fixture.sensors.RQly.value = 95
         fixture.rssiStream = 80
-        local reconnected = read.snapshot()
+        local reconnected = read.snapshot(session)
         t.assertTrue(reconnected.connected)
         t.assertEqual(reconnected.battery, 16.8)
       end)
@@ -222,7 +233,8 @@ return function(t, mock, paths)
         rssiStream = 55,
       }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        local snap = read.snapshot()
+        local session = read.init()
+        local snap = read.snapshot(session)
         t.assertTrue(snap.connected)
         t.assertTrue(snap.available.linkQuality)
         t.assertEqual(snap.linkQuality, 0)
@@ -236,7 +248,8 @@ return function(t, mock, paths)
     t.it("uses the FM sensor directly when present", function()
       mock.withInstall({ sensors = { FM = { value = "ACRO" } } }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        local snap = read.snapshot()
+        local session = read.init()
+        local snap = read.snapshot(session)
         t.assertEqual(snap.flightMode, "ACRO")
         t.assertTrue(snap.available.flightMode)
       end)
@@ -248,7 +261,8 @@ return function(t, mock, paths)
     t.it("resolves the radio getFlightMode() fallback to the mode name when no FC sensor is discovered", function()
       mock.withInstall({ sensors = {}, flightMode = { 3, "ACRO" } }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        local snap = read.snapshot()
+        local session = read.init()
+        local snap = read.snapshot(session)
         t.assertEqual(snap.flightMode, "ACRO")
         t.assertTrue(snap.available.flightMode)
       end)
@@ -257,7 +271,8 @@ return function(t, mock, paths)
     t.it("prefers the FC telemetry mode over the radio fallback when both are present", function()
       mock.withInstall({ sensors = { FM = { value = "HORIZON" } }, flightMode = { 1, "ACRO" } }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        local snap = read.snapshot()
+        local session = read.init()
+        local snap = read.snapshot(session)
         t.assertEqual(snap.flightMode, "HORIZON")
       end)
     end)
@@ -265,7 +280,8 @@ return function(t, mock, paths)
     t.it("renders a neutral placeholder when neither an FC sensor nor a radio fallback name is available", function()
       mock.withInstall({ sensors = {}, flightMode = nil }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        local snap = read.snapshot()
+        local session = read.init()
+        local snap = read.snapshot(session)
         t.assertEqual(snap.flightMode, "--")
         t.assertFalse(snap.available.flightMode)
       end)
@@ -274,7 +290,8 @@ return function(t, mock, paths)
     t.it("renders a neutral placeholder when getFlightMode() returns an index but an empty name", function()
       mock.withInstall({ sensors = {}, flightMode = { 0, "" } }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        local snap = read.snapshot()
+        local session = read.init()
+        local snap = read.snapshot(session)
         t.assertEqual(snap.flightMode, "--")
         t.assertFalse(snap.available.flightMode)
       end)
@@ -291,7 +308,8 @@ return function(t, mock, paths)
         },
       }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        local snap = read.snapshot()
+        local session = read.init()
+        local snap = read.snapshot(session)
         t.assertEqual(snap.batteryCells, 4)
         t.assertNear(snap.batteryCellVoltage, 4.20, 0.01)
       end)
@@ -305,7 +323,8 @@ return function(t, mock, paths)
         },
       }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        local snap = read.snapshot()
+        local session = read.init()
+        local snap = read.snapshot(session)
         t.assertEqual(snap.batteryCells, 4)
       end)
     end)
@@ -319,12 +338,13 @@ return function(t, mock, paths)
       }
       mock.withInstall(fixture, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        local first = read.snapshot()
+        local session = read.init()
+        local first = read.snapshot(session)
         t.assertEqual(first.batteryCells, 6)
 
         -- Pack drains mid-flight; the link stays up across frames.
         fixture.sensors.VFAS.value = 21.0
-        local drained = read.snapshot()
+        local drained = read.snapshot(session)
         t.assertEqual(drained.batteryCells, 6)
         t.assertNear(drained.batteryCellVoltage, 3.50, 0.01)
       end)
@@ -339,19 +359,20 @@ return function(t, mock, paths)
       }
       mock.withInstall(fixture, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
-        local first = read.snapshot()
+        local session = read.init()
+        local first = read.snapshot(session)
         t.assertEqual(first.batteryCells, 6)
 
         -- Telemetry drops.
         fixture.sensors.RQly.value = 0
-        local disconnected = read.snapshot()
+        local disconnected = read.snapshot(session)
         t.assertFalse(disconnected.connected)
         t.assertNil(disconnected.batteryCells)
 
         -- A different, smaller pack connects next.
         fixture.sensors.RQly.value = 95
         fixture.sensors.VFAS.value = 8.4 -- 2S at full charge
-        local reconnected = read.snapshot()
+        local reconnected = read.snapshot(session)
         t.assertEqual(reconnected.batteryCells, 2)
       end)
     end)
@@ -362,8 +383,9 @@ return function(t, mock, paths)
       local fixture = { sensors = {} } -- Curr starts undiscovered
       mock.withInstall(fixture, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
+        local session = read.init()
 
-        local first = read.snapshot()
+        local first = read.snapshot(session)
         t.assertFalse(first.available.current)
 
         -- Simulate the sensor being discovered mid-session (e.g. a rebind).
@@ -373,14 +395,80 @@ return function(t, mock, paths)
         -- should keep skipping the now-available sensor.
         local stillCached
         for _ = 1, 88 do
-          stillCached = read.snapshot()
+          stillCached = read.snapshot(session)
         end
         t.assertFalse(stillCached.available.current)
 
         -- The rescan-interval frame clears the cache and re-resolves.
-        local rescanned = read.snapshot()
+        local rescanned = read.snapshot(session)
         t.assertTrue(rescanned.available.current)
         t.assertEqual(rescanned.current, 6.5)
+      end)
+    end)
+  end)
+
+  -- Architecture & Packaging Hardening, Task 3: the sensor-ID cache and
+  -- rescan counter used to live as module-level locals, shared by every
+  -- M.snapshot() caller. EdgeTX shares a widget script's file-scope
+  -- locals across every instance of that widget, so two widget instances
+  -- would have corrupted each other's negative-cache state. M.init() now
+  -- hands each caller its own session.
+  t.describe("telemetry/read.lua per-instance session isolation (Task 3)", function()
+    t.it("does not share a sensor-ID negative cache between two independently-init()'d sessions", function()
+      -- Curr is undiscovered under sessionA's fixture but discovered
+      -- under sessionB's -- if the negative cache were shared, sessionB
+      -- would incorrectly inherit sessionA's "Curr is absent" result.
+      mock.withInstall({ sensors = {} }, function()
+        local read = paths.loadWidgetModule("telemetry/read.lua")
+        local sessionA = read.init()
+        local snapA = read.snapshot(sessionA)
+        t.assertFalse(snapA.available.current)
+      end)
+
+      mock.withInstall({ sensors = { Curr = { value = 6.5 } } }, function()
+        local read = paths.loadWidgetModule("telemetry/read.lua")
+        local sessionB = read.init()
+        local snapB = read.snapshot(sessionB)
+        t.assertTrue(snapB.available.current,
+          "a fresh session must resolve its own sensors, not inherit another session's negative cache")
+        t.assertEqual(snapB.current, 6.5)
+      end)
+    end)
+
+    t.it("does not share a battery latch between two independently-init()'d sessions", function()
+      local fixture = {
+        sensors = {
+          VFAS = { value = 25.0 }, -- 6S near-full
+          RQly = { value = 95 },
+        },
+      }
+      mock.withInstall(fixture, function()
+        local read = paths.loadWidgetModule("telemetry/read.lua")
+
+        -- sessionA sees the pack from near-full charge and correctly
+        -- latches 6S, then holds that latch as the pack drains.
+        local sessionA = read.init()
+        t.assertEqual(read.snapshot(sessionA).batteryCells, 6)
+
+        fixture.sensors.VFAS.value = 21.0
+        t.assertEqual(read.snapshot(sessionA).batteryCells, 6)
+
+        -- A second widget instance is created now, mid-flight, and sees
+        -- this already-drained 21.0V for the very first time. If
+        -- sessionB's state were accidentally shared with sessionA's (the
+        -- bug this task fixes), it would incorrectly inherit the
+        -- already-latched 6. A properly isolated session has no prior
+        -- history, so it infers fresh from the only reading it has ever
+        -- seen -- 5, not 6.
+        local sessionB = read.init()
+        local snapB = read.snapshot(sessionB)
+        t.assertEqual(snapB.batteryCells, 5,
+          "a brand-new session must infer fresh from its own first reading, not inherit another session's already-established 6S latch")
+
+        -- sessionA's own latch must remain completely unaffected by
+        -- sessionB's existence.
+        fixture.sensors.VFAS.value = 18.0
+        t.assertEqual(read.snapshot(sessionA).batteryCells, 6)
       end)
     end)
   end)

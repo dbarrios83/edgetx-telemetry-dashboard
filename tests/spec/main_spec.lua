@@ -142,4 +142,51 @@ return function(t, mock, paths)
       end)
     end)
   end)
+
+  -- Architecture & Packaging Hardening, Task 3: this is the actual bug
+  -- scenario the read.lua/battery.lua session refactor fixes -- two real
+  -- widget instances (two create() calls), not just two lower-level
+  -- read.init()/battery.init() sessions in isolation (covered separately
+  -- in read_spec.lua and battery_spec.lua).
+  t.describe("main.lua per-instance telemetry state isolation (Task 3)", function()
+    t.it("does not share a battery latch between two independently-created widget instances", function()
+      local fixture = {
+        sensors = {
+          VFAS = { value = 25.0 }, -- 6S near-full
+          RQly = { value = 95 },
+        },
+      }
+      mock.withInstall(fixture, function()
+        local main = paths.loadWidgetModule("main.lua")
+
+        -- widgetA sees the pack from near-full charge and correctly
+        -- latches 6S, then holds that latch as the pack drains.
+        local widgetA = main.create(ZONE, { darkTheme = 1 })
+        main.refresh(widgetA, nil, nil)
+        t.assertEqual(widgetA.telemetry.batteryCells, 6)
+
+        fixture.sensors.VFAS.value = 21.0
+        main.refresh(widgetA, nil, nil)
+        t.assertEqual(widgetA.telemetry.batteryCells, 6)
+
+        -- widgetB is created now, mid-flight, and sees this
+        -- already-drained 21.0V for the very first time. If the two
+        -- widget instances shared a telemetry session (the bug this task
+        -- fixes), widgetB would incorrectly inherit widgetA's
+        -- already-latched 6. A properly isolated instance has no prior
+        -- history, so it infers fresh from the only reading it has ever
+        -- seen -- 5, not 6.
+        local widgetB = main.create(ZONE, { darkTheme = 1 })
+        main.refresh(widgetB, nil, nil)
+        t.assertEqual(widgetB.telemetry.batteryCells, 5,
+          "a freshly created widget instance must infer its own cell count, not share widgetA's telemetry session")
+
+        -- widgetA's own session must remain completely unaffected by
+        -- widgetB's existence.
+        fixture.sensors.VFAS.value = 18.0
+        main.refresh(widgetA, nil, nil)
+        t.assertEqual(widgetA.telemetry.batteryCells, 6)
+      end)
+    end)
+  end)
 end

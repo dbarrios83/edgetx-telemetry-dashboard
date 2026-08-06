@@ -237,6 +237,10 @@ local function create(zone, options)
     cachedZone = nil,
     theme = theme,
     elrsState = elrsModule and elrsModule.init() or nil,
+    -- Own telemetry-reading session (sensor-ID cache, battery latch) --
+    -- must not be shared with any other widget instance. See
+    -- telemetry/read.lua's M.init().
+    telemetrySession = telemetryRead and telemetryRead.init() or nil,
   }
 end
 
@@ -285,8 +289,8 @@ local function refresh(widget, event, touchState)
     elrsMajorVersion = elrsModule.getMajorVersion(widget.elrsState)
   end
 
-  if telemetryRead and telemetryRead.snapshot then
-    widget.telemetry = telemetryRead.snapshot(elrsMajorVersion)
+  if telemetryRead and telemetryRead.snapshot and widget.telemetrySession then
+    widget.telemetry = telemetryRead.snapshot(widget.telemetrySession, elrsMajorVersion)
   else
     widget.telemetry = nil
   end

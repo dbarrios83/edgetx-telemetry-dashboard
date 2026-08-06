@@ -28,10 +28,11 @@ return function(t, mock, paths)
         },
       }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
+        local session = read.init()
         local state = paths.loadWidgetModule("telemetry/state.lua")
         local context = paths.loadWidgetModule("render/context.lua")
 
-        local snap = read.snapshot()
+        local snap = read.snapshot(session)
         local evaluated = state.evaluate(snap)
 
         context.draw(RECT, snap, evaluated, THEME)
@@ -52,10 +53,11 @@ return function(t, mock, paths)
         },
       }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
+        local session = read.init()
         local state = paths.loadWidgetModule("telemetry/state.lua")
         local context = paths.loadWidgetModule("render/context.lua")
 
-        local snap = read.snapshot()
+        local snap = read.snapshot(session)
         t.assertFalse(snap.available.current)
 
         local evaluated = state.evaluate(snap)
@@ -74,10 +76,11 @@ return function(t, mock, paths)
         },
       }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
+        local session = read.init()
         local state = paths.loadWidgetModule("telemetry/state.lua")
         local context = paths.loadWidgetModule("render/context.lua")
 
-        local snap = read.snapshot()
+        local snap = read.snapshot(session)
         t.assertTrue(snap.available.rsnr)
         t.assertEqual(snap.rsnr, 12)
 
@@ -98,10 +101,11 @@ return function(t, mock, paths)
         },
       }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
+        local session = read.init()
         local state = paths.loadWidgetModule("telemetry/state.lua")
         local context = paths.loadWidgetModule("render/context.lua")
 
-        local snap = read.snapshot()
+        local snap = read.snapshot(session)
         t.assertFalse(snap.gpsValid)
 
         local evaluated = state.evaluate(snap)
@@ -115,10 +119,11 @@ return function(t, mock, paths)
     t.it("renders the radio getFlightMode() fallback name end-to-end (Step 6)", function()
       mock.withInstall({ sensors = { RQly = { value = 95 } }, flightMode = { 2, "HORIZON" } }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
+        local session = read.init()
         local state = paths.loadWidgetModule("telemetry/state.lua")
         local context = paths.loadWidgetModule("render/context.lua")
 
-        local snap = read.snapshot()
+        local snap = read.snapshot(session)
         local evaluated = state.evaluate(snap)
         context.draw(RECT, snap, evaluated, THEME)
 

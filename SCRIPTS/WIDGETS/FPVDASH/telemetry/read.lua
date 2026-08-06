@@ -32,12 +32,11 @@ end
 
 local batteryModule = loadSiblingModule("telemetry/battery.lua")
 
--- Maps sensor-name -> numeric source-ID, or false when confirmed absent.
--- Negative entries are cleared every RESCAN_INTERVAL frames so sensors
--- discovered after initial link-up are automatically retried.
-local SOURCE_ID_CACHE = {}
+-- RESCAN_INTERVAL: how often (in frames) each session's negative sensor-ID
+-- cache is cleared so sensors discovered after initial link-up are
+-- automatically retried. Shared, immutable across sessions; the cache and
+-- frame counter it governs are per-session (see M.init()).
 local RESCAN_INTERVAL = 90
-local frameCount = 0
 
 -- Preferred ELRS/CRSF names first, generic fallbacks after.
 -- NOTE: "RSSI" intentionally omitted from rssi field to avoid
@@ -107,51 +106,73 @@ local PACKET_RATE_FROM_RFMD_4X = {
   [100] = 100, [101] = 150,
 }
 
-local snapshot = {
-  battery = 0,
-  rssi = 0,
-  linkQuality = 0,
-  packetRate = 0,
-  current = 0,
-  satellites = 0,
-  sats = 0,
-  txPower = 0,
-  flightMode = EMPTY_TEXT,
+-- Builds a fresh, empty snapshot table with the same shape M.snapshot()
+-- populates every frame.
+local function newSnapshot()
+  return {
+    battery = 0,
+    rssi = 0,
+    linkQuality = 0,
+    packetRate = 0,
+    current = 0,
+    satellites = 0,
+    sats = 0,
+    txPower = 0,
+    flightMode = EMPTY_TEXT,
 
-  rssi1 = 0,
-  rssi2 = 0,
-  capacity = 0,
-  activeAntenna = 0,
-  rsnr = 0,
+    rssi1 = 0,
+    rssi2 = 0,
+    capacity = 0,
+    activeAntenna = 0,
+    rsnr = 0,
 
-  -- Whether the "GPS" sensor is reporting a real fix table (lat/lon),
-  -- as opposed to being absent or mid-acquisition. See readGpsValid().
-  gpsValid = false,
+    -- Whether the "GPS" sensor is reporting a real fix table (lat/lon),
+    -- as opposed to being absent or mid-acquisition. See readGpsValid().
+    gpsValid = false,
 
-  -- Resolved by telemetry/battery.lua; nil until a connected snapshot
-  -- has been evaluated. See M.snapshot() below.
-  batteryCells = nil,
-  batteryCellVoltage = nil,
+    -- Resolved by telemetry/battery.lua; nil until a connected snapshot
+    -- has been evaluated. See M.snapshot() below.
+    batteryCells = nil,
+    batteryCellVoltage = nil,
 
-  available = {
-    battery = false,
-    rssi = false,
-    linkQuality = false,
-    packetRate = false,
-    current = false,
-    satellites = false,
-    sats = false,
-    txPower = false,
-    flightMode = false,
-    rssi1 = false,
-    rssi2 = false,
-    capacity = false,
-    activeAntenna = false,
-    rsnr = false,
-  },
+    available = {
+      battery = false,
+      rssi = false,
+      linkQuality = false,
+      packetRate = false,
+      current = false,
+      satellites = false,
+      sats = false,
+      txPower = false,
+      flightMode = false,
+      rssi1 = false,
+      rssi2 = false,
+      capacity = false,
+      activeAntenna = false,
+      rsnr = false,
+    },
 
-  connected = false,
-}
+    connected = false,
+  }
+end
+
+-- Creates and returns a fresh per-widget-instance telemetry-reading
+-- session: the sensor-ID cache, rescan counter, the mutable snapshot
+-- table M.snapshot() returns, and (if telemetry/battery.lua loaded) its
+-- own battery-latch state. Call once in create() and pass the same
+-- session into every M.snapshot() call for that widget instance --
+-- sharing a session across instances would leak one instance's
+-- discovered sensors/battery latch into another's (EdgeTX shares
+-- file-scope locals between every instance of a widget script; this
+-- state must not live there).
+function M.init()
+  return {
+    sourceIdCache = {},
+    frameCount = 0,
+    snapshot = newSnapshot(),
+    batteryState = batteryModule and batteryModule.init() or nil,
+  }
+end
 
 local function validValue(v)
   if v == nil then
@@ -165,19 +186,21 @@ local function validValue(v)
   return true
 end
 
--- Clear negative-cache entries so late-discovered sensors are retried.
-local function clearNegativeCache()
-  for k, v in pairs(SOURCE_ID_CACHE) do
+-- Clear a session's negative-cache entries so late-discovered sensors are
+-- retried.
+local function clearNegativeCache(session)
+  for k, v in pairs(session.sourceIdCache) do
     if v == false then
-      SOURCE_ID_CACHE[k] = nil
+      session.sourceIdCache[k] = nil
     end
   end
 end
 
--- Resolve a sensor name to its numeric source-ID.
--- Returns false when getFieldInfo confirms the sensor is not in the model.
-local function resolveId(name)
-  local cached = SOURCE_ID_CACHE[name]
+-- Resolve a sensor name to its numeric source-ID, using this session's
+-- own cache. Returns false when getFieldInfo confirms the sensor is not
+-- in the model.
+local function resolveId(session, name)
+  local cached = session.sourceIdCache[name]
   if cached ~= nil then
     return cached
   end
@@ -185,26 +208,26 @@ local function resolveId(name)
   if getFieldInfo then
     local info = getFieldInfo(name)
     if info and info.id then
-      SOURCE_ID_CACHE[name] = info.id
+      session.sourceIdCache[name] = info.id
       return info.id
     end
   end
 
   -- Confirmed absent: cache false so we skip it on subsequent frames.
-  SOURCE_ID_CACHE[name] = false
+  session.sourceIdCache[name] = false
   return false
 end
 
 -- Read the first sensor in `names` that getFieldInfo confirms exists.
 -- Does NOT fall back to getValue(name) to avoid EdgeTX returning 0
 -- for sensors that are not in the model.
-local function readFirst(names)
+local function readFirst(session, names)
   if not getValue then
     return nil
   end
 
   for i = 1, #names do
-    local id = resolveId(names[i])
+    local id = resolveId(session, names[i])
     if id ~= false then
       local value = getValue(id)
       if validValue(value) then
@@ -300,8 +323,8 @@ local function normalizeFlightMode(raw)
   return nil
 end
 
-local function assignNumeric(field, normalizer, extra)
-  local raw = readFirst(FIELD_SENSORS[field])
+local function assignNumeric(session, field, normalizer, extra)
+  local raw = readFirst(session, FIELD_SENSORS[field])
   local value = nil
 
   if normalizer then
@@ -310,6 +333,7 @@ local function assignNumeric(field, normalizer, extra)
     value = toNumber(raw)
   end
 
+  local snapshot = session.snapshot
   if value == nil then
     snapshot[field] = 0
     snapshot.available[field] = false
@@ -319,8 +343,8 @@ local function assignNumeric(field, normalizer, extra)
   end
 end
 
-local function assignText(field, normalizer)
-  local raw = readFirst(FIELD_SENSORS[field])
+local function assignText(session, field, normalizer)
+  local raw = readFirst(session, FIELD_SENSORS[field])
   local value = nil
 
   if normalizer then
@@ -329,6 +353,7 @@ local function assignText(field, normalizer)
     value = raw
   end
 
+  local snapshot = session.snapshot
   if value == nil then
     snapshot[field] = EMPTY_TEXT
     snapshot.available[field] = false
@@ -342,12 +367,12 @@ end
 -- "Cels" sensor returns a table keyed 1..N by cell number, or the number
 -- 0 when no cells are detected -- #table is the true, measured cell
 -- count and is always preferred over voltage-based inference.
-local function readExplicitCellCount()
+local function readExplicitCellCount(session)
   if not getValue then
     return nil
   end
 
-  local id = resolveId("Cels")
+  local id = resolveId(session, "Cels")
   if id == false then
     return nil
   end
@@ -367,12 +392,12 @@ end
 
 -- A GPS sensor reports a real fix as a table (lat/lon); anything else
 -- (absent, or mid-acquisition on some FCs) is not a usable fix.
-local function readGpsValid()
+local function readGpsValid(session)
   if not getValue then
     return false
   end
 
-  local id = resolveId("GPS")
+  local id = resolveId(session, "GPS")
   if id == false then
     return false
   end
@@ -388,7 +413,7 @@ end
 -- docs/platform/compatibility-matrix.md for the full citation. This is
 -- what lets a model exposing only generic sensors (VFAS/current/GPS/
 -- RSSI) and no ELRS-specific LQ/TxPower/RFMD be correctly detected as
--- connected.
+-- connected. Independent of any session -- reads the global directly.
 local function isTelemetryStreaming()
   if not getRSSI then
     return false
@@ -400,7 +425,8 @@ end
 -- Base connection on live telemetry values, not just sensor presence.
 -- Sensor IDs remain available even when RX link drops, so availability flags
 -- alone can keep connected=true incorrectly.
-local function updateConnectionFlag()
+local function updateConnectionFlag(session)
+  local snapshot = session.snapshot
   local hasStreamingTelemetry = isTelemetryStreaming()
   local hasLQ = snapshot.available.linkQuality and snapshot.linkQuality > 0
   local hasTxPower = snapshot.available.txPower and snapshot.txPower > 0
@@ -418,55 +444,59 @@ local function updateConnectionFlag()
   end
 end
 
+-- session: this widget instance's telemetry-reading session, from
+-- M.init(). Must not be shared across widget instances -- see M.init().
 -- elrsMajorVersion (optional): the ELRS firmware major version (3 or 4),
 -- resolved from CRSF device-info by telemetry/elrs.lua and passed in by
 -- main.lua. Selects which RFMD rate table to decode packet rate with;
 -- omitted or unrecognized versions leave packetRate unavailable rather
 -- than guessing.
-function M.snapshot(elrsMajorVersion)
-  frameCount = frameCount + 1
-  if frameCount >= RESCAN_INTERVAL then
-    frameCount = 0
-    clearNegativeCache()
+function M.snapshot(session, elrsMajorVersion)
+  session.frameCount = session.frameCount + 1
+  if session.frameCount >= RESCAN_INTERVAL then
+    session.frameCount = 0
+    clearNegativeCache(session)
   end
 
-  assignNumeric("battery")
-  assignNumeric("rssi")
-  assignNumeric("linkQuality")
-  assignNumeric("packetRate", normalizePacketRate, elrsMajorVersion)
-  assignNumeric("current")
-  assignNumeric("satellites")
-  snapshot.sats = snapshot.satellites
-  snapshot.available.sats = snapshot.available.satellites
-  assignNumeric("txPower")
+  assignNumeric(session, "battery")
+  assignNumeric(session, "rssi")
+  assignNumeric(session, "linkQuality")
+  assignNumeric(session, "packetRate", normalizePacketRate, elrsMajorVersion)
+  assignNumeric(session, "current")
+  assignNumeric(session, "satellites")
+  session.snapshot.sats = session.snapshot.satellites
+  session.snapshot.available.sats = session.snapshot.available.satellites
+  assignNumeric(session, "txPower")
 
-  assignText("flightMode", normalizeFlightMode)
+  assignText(session, "flightMode", normalizeFlightMode)
 
-  assignNumeric("rssi1")
-  assignNumeric("rssi2")
-  assignNumeric("capacity")
-  assignNumeric("activeAntenna")
-  assignNumeric("rsnr")
+  assignNumeric(session, "rssi1")
+  assignNumeric(session, "rssi2")
+  assignNumeric(session, "capacity")
+  assignNumeric(session, "activeAntenna")
+  assignNumeric(session, "rsnr")
 
-  snapshot.gpsValid = readGpsValid()
+  session.snapshot.gpsValid = readGpsValid(session)
 
-  updateConnectionFlag()
+  updateConnectionFlag(session)
 
-  if batteryModule then
+  local snapshot = session.snapshot
+
+  if batteryModule and session.batteryState then
     if snapshot.connected then
-      local explicitCells = readExplicitCellCount()
+      local explicitCells = readExplicitCellCount(session)
       -- snapshot.battery defaults to 0 when the sensor is undiscovered
       -- (see assignNumeric), which battery.lua must not mistake for a
       -- real 0V reading -- pass nil so it can tell "absent" from
       -- "present, genuinely reads zero" apart.
       local batteryVoltage = snapshot.available.battery and snapshot.battery or nil
-      local cells, cellVoltage = batteryModule.resolve(batteryVoltage, explicitCells)
+      local cells, cellVoltage = batteryModule.resolve(session.batteryState, batteryVoltage, explicitCells)
       snapshot.batteryCells = cells
       snapshot.batteryCellVoltage = cellVoltage
     else
       -- A new connection may be a different pack; do not carry a stale
       -- latched cell count across a disconnect.
-      batteryModule.reset()
+      batteryModule.reset(session.batteryState)
       snapshot.batteryCells = nil
       snapshot.batteryCellVoltage = nil
     end
@@ -476,7 +506,9 @@ function M.snapshot(elrsMajorVersion)
 end
 
 -- Probe a fixed list of known sensor names and return those found on this model.
--- Used for debug display only; safe to call every frame but designed for occasional use.
+-- Used for debug display only; safe to call every frame but designed for
+-- occasional use. Independent of any session -- reads getFieldInfo/getValue
+-- directly and does not use or affect a session's sensor-ID cache.
 local PROBE_NAMES = {
   "VFAS", "RxBt", "Bat", "A4",
   "1RSS", "2RSS", "TRSS",

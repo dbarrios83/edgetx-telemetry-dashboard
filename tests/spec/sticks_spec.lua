@@ -46,10 +46,11 @@ return function(t, mock, paths)
         sensors = { RQly = { value = 95 } }, -- no VFAS/RxBt/etc. at all
       }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
+        local session = read.init()
         local state = paths.loadWidgetModule("telemetry/state.lua")
         local sticks = paths.loadWidgetModule("render/sticks.lua")
 
-        local snap = read.snapshot()
+        local snap = read.snapshot(session)
         t.assertFalse(snap.available.battery)
         t.assertNil(snap.batteryCellVoltage)
 
@@ -69,10 +70,11 @@ return function(t, mock, paths)
         },
       }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
+        local session = read.init()
         local state = paths.loadWidgetModule("telemetry/state.lua")
         local sticks = paths.loadWidgetModule("render/sticks.lua")
 
-        local snap = read.snapshot()
+        local snap = read.snapshot(session)
         t.assertTrue(snap.available.battery)
         t.assertEqual(snap.batteryCellVoltage, 0)
         t.assertNil(snap.batteryCells) -- never established -- no cell count invented
@@ -96,14 +98,15 @@ return function(t, mock, paths)
       }
       mock.withInstall(fixture, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
+        local session = read.init()
         local state = paths.loadWidgetModule("telemetry/state.lua")
         local sticks = paths.loadWidgetModule("render/sticks.lua")
 
-        local first = read.snapshot()
+        local first = read.snapshot(session)
         t.assertEqual(first.batteryCells, 4)
 
         fixture.sensors.VFAS.value = 0
-        local snap = read.snapshot()
+        local snap = read.snapshot(session)
         t.assertEqual(snap.batteryCells, 4) -- latch still holds
         t.assertEqual(snap.batteryCellVoltage, 0)
 
@@ -123,10 +126,11 @@ return function(t, mock, paths)
         },
       }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
+        local session = read.init()
         local state = paths.loadWidgetModule("telemetry/state.lua")
         local sticks = paths.loadWidgetModule("render/sticks.lua")
 
-        local snap = read.snapshot()
+        local snap = read.snapshot(session)
         t.assertNotNil(snap.batteryCellVoltage)
 
         local evaluated = state.evaluate(snap)

@@ -173,7 +173,11 @@ The major version comes from `telemetry/elrs.lua`'s existing CRSF
 device-info parsing, now also exposed as structured data
 (`state.versionMajor` / `M.getMajorVersion(state)`) rather than only a
 display string, and threaded through by `main.lua` into
-`telemetryRead.snapshot(elrsMajorVersion)`.
+`telemetryRead.snapshot(session, elrsMajorVersion)`. (The leading
+`session` argument was added in the Architecture & Packaging Hardening
+project's Task 3, which moved the sensor-ID cache and battery latch off
+module scope into a per-widget-instance session from `telemetryRead.init()`
+-- see `docs/architecture/lua-widget-architecture.md` Section 8.1.)
 
 An index that falls in neither table (unknown version, or a value in a
 band gap like `12`-`19` for 4.x) resolves to unavailable, never a
