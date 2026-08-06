@@ -178,9 +178,18 @@ Per the plan's risk register: **the simulator does not guarantee real
 hardware behavior.** This is the release gate that runs *after* every
 row above passes, not a substitute for it.
 
-- [ ] Load the widget on one physical 480×272-class radio.
-- [ ] Load the widget on one physical 480×320-class radio (if available;
-      note in findings if not — this is a coverage gap, not a pass).
+- [x] Load the widget on one physical 480×320-class radio (RadioMaster
+      TX15).
+- [ ] Load the widget on one physical 480×272-class radio. **Known,
+      standing coverage gap (2026-08-06): no TX16S/T16-class hardware
+      available to the tester.** Simulator coverage for the 480×272
+      class (Section 1) still applies, but the plan's risk register is
+      explicit that the simulator does not guarantee real hardware
+      behavior — that guarantee specifically has not been obtained for
+      this display class. Do not treat this row as satisfied by
+      simulator results alone; it stays open until 480×272-class
+      hardware becomes available for testing, or the project explicitly
+      accepts the risk and ships without it.
 - [ ] Bind to a real ELRS receiver, confirm connect/disconnect/reconnect
       matches Section 2 above on real hardware.
 - [ ] Confirm no crash, freeze, or corrupted rendering after several
@@ -207,5 +216,12 @@ review used.
 - [ ] Every table above is fully filled in with Pass/Fail and required
       screenshots.
 - [ ] No unresolved P1 or P2 finding remains in the findings log.
-- [ ] Real-radio smoke test complete.
-- [ ] Notion Step 11 task and Implementation Plan updated to Done.
+- [ ] Real-radio smoke test complete. **Currently partial: 480×320-class
+      (TX15) done; 480×272-class (TX16S/T16) has no available hardware
+      as of 2026-08-06 — see the dedicated note under Real-radio smoke
+      test above.** Signing off without closing this gap means
+      explicitly accepting that risk for the 480×272 class, not that it
+      was verified.
+- [ ] Notion Step 11 task and Implementation Plan updated to Done —
+      record the 480×272 hardware gap there too, don't let it get lost
+      once the rest of the checklist is green.
