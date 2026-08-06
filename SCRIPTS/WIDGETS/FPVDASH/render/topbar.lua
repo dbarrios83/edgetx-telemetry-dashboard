@@ -265,6 +265,13 @@ local function readTxVoltage()
   return nil
 end
 
+-- `utils` is not an EdgeTX API global and no module in this repo defines
+-- it -- this is a speculative, never-yet-used optional-extension hook
+-- (Architecture & Packaging Hardening, Task 4 audit). It's safely guarded
+-- (the `utils and ...` check short-circuits when nil, so this never
+-- errors), but flagged rather than silently fixed: a future task should
+-- decide whether to remove it or actually wire up a `utils` module.
+-- luacheck: push ignore utils
 local function readTxBatteryInfo()
   if utils and type(utils.txBatteryInfo) == "function" then
     local v, state = utils.txBatteryInfo()
@@ -303,6 +310,7 @@ local function readTxBatteryInfo()
 
   return v, "low"
 end
+-- luacheck: pop
 
 local function readClockText()
   if getDateTime then

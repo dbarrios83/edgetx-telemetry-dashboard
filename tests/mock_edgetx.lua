@@ -12,6 +12,11 @@
 
 local M = {}
 
+-- table.unpack was introduced in Lua 5.2; Lua 5.1 only has the global
+-- `unpack`. This mock must run on any of 5.1-5.4 (see README.md's
+-- "Running Tests" section), so resolve whichever one actually exists.
+local unpack = table.unpack or unpack
+
 local installedKeys = {}
 
 -- fixture.sensors: { [sensorName] = { id = <number, optional>, value = <any> } }
@@ -105,7 +110,7 @@ function M.install(fixture)
       return nil
     end
     if type(fm) == "table" then
-      return table.unpack(fm)
+      return unpack(fm)
     end
     return fm
   end)

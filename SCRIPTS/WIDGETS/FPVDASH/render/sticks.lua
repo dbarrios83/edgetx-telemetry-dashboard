@@ -369,6 +369,13 @@ local function formatLinkQualityText(telemetry)
   return string.format("%d%%", math.floor(v + 0.5))
 end
 
+-- `utils` is not an EdgeTX API global and no module in this repo defines
+-- it -- this is a speculative, never-yet-used optional-extension hook
+-- (Architecture & Packaging Hardening, Task 4 audit). It's safely guarded
+-- (the `utils and ...` check short-circuits when nil, so this never
+-- errors), but flagged rather than silently fixed: a future task should
+-- decide whether to remove it or actually wire up a `utils` module.
+-- luacheck: push ignore utils
 local function connectionIconState(tpwr, rqly)
   if utils and type(utils.connectionIconState) == "function" then
     local key = utils.connectionIconState(tpwr, rqly)
@@ -390,6 +397,7 @@ local function connectionIconState(tpwr, rqly)
     return "ok"
   end
 end
+-- luacheck: pop
 
 local function drawLinkQualitySection(rect, telemetry, state)
   if not telemetry or telemetry.connected ~= true then
