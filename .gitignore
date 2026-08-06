@@ -1,0 +1,20 @@
+# OS cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor swap/temp files
+*.swp
+*.swo
+*~
+*.tmp
+
+# Local Lua interpreter/tooling artifacts (compiled bytecode, local
+# LuaRocks trees a contributor may create while installing luacheck etc.)
+*.luac
+lua_modules/
+.luarocks/
+
+# Local release-zip output (.github/workflows/package.yml builds this in
+# CI; a contributor running the same steps locally shouldn't commit it)
+/dist/
