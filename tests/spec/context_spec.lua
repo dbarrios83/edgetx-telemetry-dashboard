@@ -111,5 +111,19 @@ return function(t, mock, paths)
         t.assertFalse(drawnTextContains("11"))
       end)
     end)
+
+    t.it("renders the radio getFlightMode() fallback name end-to-end (Step 6)", function()
+      mock.withInstall({ sensors = { RQly = { value = 95 } }, flightMode = { 2, "HORIZON" } }, function()
+        local read = paths.loadWidgetModule("telemetry/read.lua")
+        local state = paths.loadWidgetModule("telemetry/state.lua")
+        local context = paths.loadWidgetModule("render/context.lua")
+
+        local snap = read.snapshot()
+        local evaluated = state.evaluate(snap)
+        context.draw(RECT, snap, evaluated, THEME)
+
+        t.assertTrue(drawnTextContains("HORIZON"))
+      end)
+    end)
   end)
 end

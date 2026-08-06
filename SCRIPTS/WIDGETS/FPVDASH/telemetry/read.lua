@@ -279,15 +279,21 @@ local function normalizePacketRate(raw, elrsMajorVersion)
   return resolvePacketRateFromRfmd(n, elrsMajorVersion)
 end
 
+-- FC telemetry flight mode (FM/FMODE) takes precedence when present; the
+-- radio's own getFlightMode() is only a fallback for models with no FC
+-- flight-mode sensor. getFlightMode() returns (index, name) in that
+-- order -- capturing only the first value silently drops the name and
+-- always fails the `type(mode) == "string"` check, which is why this
+-- fallback previously never resolved to anything.
 local function normalizeFlightMode(raw)
   if type(raw) == "string" and raw ~= "" then
     return raw
   end
 
   if getFlightMode then
-    local mode = getFlightMode()
-    if type(mode) == "string" and mode ~= "" then
-      return mode
+    local _, name = getFlightMode()
+    if type(name) == "string" and name ~= "" then
+      return name
     end
   end
 

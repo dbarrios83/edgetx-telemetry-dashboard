@@ -167,13 +167,37 @@ return function(t, mock, paths)
       end)
     end)
 
-    -- Documents the current baseline for the Step 6 gap: EdgeTX's
-    -- getFlightMode() returns (index, name), but normalizeFlightMode()
-    -- only captures the first return value, so the name is dropped and
-    -- the fallback never resolves. Step 6 ("Correct flight-mode
-    -- normalization") is expected to change this assertion.
-    t.it("[Step 6 baseline] the getFlightMode() mode-name fallback is currently dropped", function()
+    -- Step 6 fix: EdgeTX's getFlightMode() returns (index, name); the
+    -- radio fallback must use the name, not the index it used to
+    -- silently capture and then fail a `type() == "string"` check on.
+    t.it("resolves the radio getFlightMode() fallback to the mode name when no FC sensor is discovered", function()
       mock.withInstall({ sensors = {}, flightMode = { 3, "ACRO" } }, function()
+        local read = paths.loadWidgetModule("telemetry/read.lua")
+        local snap = read.snapshot()
+        t.assertEqual(snap.flightMode, "ACRO")
+        t.assertTrue(snap.available.flightMode)
+      end)
+    end)
+
+    t.it("prefers the FC telemetry mode over the radio fallback when both are present", function()
+      mock.withInstall({ sensors = { FM = { value = "HORIZON" } }, flightMode = { 1, "ACRO" } }, function()
+        local read = paths.loadWidgetModule("telemetry/read.lua")
+        local snap = read.snapshot()
+        t.assertEqual(snap.flightMode, "HORIZON")
+      end)
+    end)
+
+    t.it("renders a neutral placeholder when neither an FC sensor nor a radio fallback name is available", function()
+      mock.withInstall({ sensors = {}, flightMode = nil }, function()
+        local read = paths.loadWidgetModule("telemetry/read.lua")
+        local snap = read.snapshot()
+        t.assertEqual(snap.flightMode, "--")
+        t.assertFalse(snap.available.flightMode)
+      end)
+    end)
+
+    t.it("renders a neutral placeholder when getFlightMode() returns an index but an empty name", function()
+      mock.withInstall({ sensors = {}, flightMode = { 0, "" } }, function()
         local read = paths.loadWidgetModule("telemetry/read.lua")
         local snap = read.snapshot()
         t.assertEqual(snap.flightMode, "--")
