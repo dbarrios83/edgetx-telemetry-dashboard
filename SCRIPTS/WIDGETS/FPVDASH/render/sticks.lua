@@ -60,7 +60,12 @@ local BATTERY_ICON_W = 20
 local BATTERY_ICON_H = 32
 local LQ_ICON_W = 30
 local LQ_ICON_H = 30
-local STICK_SIDE_GAP = 6
+
+-- Sticks panel grid: Link Quality / Sticks / Receiver Battery, in that
+-- order (Grid-aligned top bar and sticks, Task 2). Cells are adjacent with
+-- no inter-cell gap -- spacing comes entirely from each cell's content
+-- being a centered group smaller than the cell itself.
+local GRID_WEIGHTS = { 30, 40, 30 }
 
 -- Stick monitor visual tuning.
 local SHOW_STICK_AXIS = false
@@ -81,23 +86,21 @@ local STICK_VALUES_BOTTOM_OUTSIDE_GAP = -1
 local STICK_VALUES_TOP_NUDGE = 0
 local STICK_VALUES_BOTTOM_NUDGE = 0
 
--- RX battery block alignment (kept identical to user-tuned visual result).
+-- RX battery block: icon + value/text centered together as one group
+-- (render/primitives.lua's centerGroup) inside the Receiver Battery cell.
+-- EdgeTX widget text has no runtime glyph-metrics API, so RX_BAT_TEXT_H is
+-- a documented estimate of _MIDSIZE's rendered height rather than a
+-- measured value -- close enough for centering math; Task 5's EdgeTX
+-- Companion pass verifies/adjusts it if needed.
 local RX_BAT_TEXT_CHAR_W = 7
-local RX_BAT_TEXT_H = 0
+local RX_BAT_TEXT_H = 12
 local RX_BAT_ICON_TEXT_GAP = 4
-local RX_BAT_TEXT_X_NUDGE = -60
-local RX_BAT_TEXT_Y_NUDGE = 10
-local RX_BAT_ICON_X_NUDGE = 10
-local RX_BAT_ICON_Y_NUDGE = -15
 
--- Link-quality block keeps exact vertical alignment with RX battery block.
+-- Link-quality block keeps exact vertical alignment with RX battery block
+-- (same text metrics), centered the same way inside its own cell.
 local LQ_TEXT_CHAR_W = RX_BAT_TEXT_CHAR_W
 local LQ_TEXT_H = RX_BAT_TEXT_H
 local LQ_ICON_TEXT_GAP = RX_BAT_ICON_TEXT_GAP
-local LQ_TEXT_X_NUDGE = -10
-local LQ_TEXT_Y_NUDGE = RX_BAT_TEXT_Y_NUDGE
-local LQ_ICON_X_NUDGE = 30
-local LQ_ICON_Y_NUDGE = RX_BAT_ICON_Y_NUDGE
 
 local function themeColor(themeToken, fallback)
   if lcd and type(lcd.getThemeColor) == "function" and type(themeToken) == "number" then
@@ -153,6 +156,11 @@ end
 
 local openBitmapFromCandidates = (primitivesModule and primitivesModule.openBitmapFromCandidates)
   or function() return nil end
+
+local gridCells = (primitivesModule and primitivesModule.gridCells)
+  or function() return {} end
+local centerGroup = (primitivesModule and primitivesModule.centerGroup)
+  or function() return {} end
 
 local function ensureIconsLoaded(theme)
   if _iconsLoaded then return end
@@ -384,43 +392,25 @@ local function drawLinkQualitySection(rect, telemetry, state)
   local icon = CONNECTION_ICONS[iconKey] or CONNECTION_ICONS.ok
 
   local textW = #text * LQ_TEXT_CHAR_W
-  local textH = LQ_TEXT_H
-  local gap = LQ_ICON_TEXT_GAP
 
-  -- Keep icon at a fixed anchor so digit-count changes (100% -> 99%)
-  -- do not shift icon alignment.
-  local iconX = rect.x + math.floor((rect.w - LQ_ICON_W) / 2)
-  if iconX < rect.x then
-    iconX = rect.x
-  end
-
-  local textX
+  -- Icon + gap + text move as one centered group, so a digit-count change
+  -- (100% -> 99%) shifts the whole group's center by half a character
+  -- rather than jittering the icon against a fixed anchor.
+  local parts
   if icon then
-    textX = iconX + LQ_ICON_W + gap + LQ_TEXT_X_NUDGE
+    parts = { { w = LQ_ICON_W, h = LQ_ICON_H }, { w = LQ_ICON_TEXT_GAP }, { w = textW, h = LQ_TEXT_H } }
   else
-    -- Fallback text-only mode stays centered when icon is unavailable.
-    textX = rect.x + math.floor((rect.w - textW) / 2) + LQ_TEXT_X_NUDGE
-    if textX < rect.x then
-      textX = rect.x
-    end
+    parts = { { w = textW, h = LQ_TEXT_H } }
   end
-
-  -- Keep same vertical alignment behavior as RX battery icon+text.
-  local textY = rect.y + math.floor((rect.h - textH) / 2) + LQ_TEXT_Y_NUDGE
-  if textY < rect.y then
-    textY = rect.y
-  end
+  local placed = centerGroup(rect, parts)
 
   if icon then
-    local iconY = rect.y + math.floor((rect.h - LQ_ICON_H) / 2) + LQ_ICON_Y_NUDGE
-    if iconY < rect.y then
-      iconY = rect.y
-    end
     -- Preserve original icon PNG colors.
-    lcd.drawBitmap(icon, iconX + LQ_ICON_X_NUDGE, iconY)
+    lcd.drawBitmap(icon, placed[1].x, placed[1].y)
+    drawShadowText(placed[3].x, placed[3].y, text, _MIDSIZE, color)
+  else
+    drawShadowText(placed[1].x, placed[1].y, text, _MIDSIZE, color)
   end
-
-  drawShadowText(textX, textY, text, _MIDSIZE, color)
 end
 
 local function drawRxBatterySection(rect, telemetry, state)
@@ -434,39 +424,22 @@ local function drawRxBatterySection(rect, telemetry, state)
 
   local icon = BATTERY_ICONS[batteryIconKey(telemetry, batteryState)]
   local textW = #text * RX_BAT_TEXT_CHAR_W
-  local textH = RX_BAT_TEXT_H
-  local gap = RX_BAT_ICON_TEXT_GAP
 
-  local totalW = textW
+  local parts
   if icon then
-    totalW = BATTERY_ICON_W + gap + textW
+    parts = { { w = BATTERY_ICON_W, h = BATTERY_ICON_H }, { w = RX_BAT_ICON_TEXT_GAP }, { w = textW, h = RX_BAT_TEXT_H } }
+  else
+    parts = { { w = textW, h = RX_BAT_TEXT_H } }
   end
-
-  local startX = rect.x + math.floor((rect.w - totalW) / 2)
-  if startX < rect.x then
-    startX = rect.x
-  end
-
-  local textX = startX
-  if icon then
-    textX = startX + BATTERY_ICON_W + gap + RX_BAT_TEXT_X_NUDGE
-  end
-
-  local textY = rect.y + math.floor((rect.h - textH) / 2) + RX_BAT_TEXT_Y_NUDGE
-  if textY < rect.y then
-    textY = rect.y
-  end
+  local placed = centerGroup(rect, parts)
 
   if icon then
-    local iconY = rect.y + math.floor((rect.h - BATTERY_ICON_H) / 2) + RX_BAT_ICON_Y_NUDGE
-    if iconY < rect.y then
-      iconY = rect.y
-    end
     -- Keep native PNG colors; no CUSTOM_COLOR tint for battery icons.
-    lcd.drawBitmap(icon, startX + RX_BAT_ICON_X_NUDGE, iconY)
+    lcd.drawBitmap(icon, placed[1].x, placed[1].y)
+    drawShadowText(placed[3].x, placed[3].y, text, _MIDSIZE, color)
+  else
+    drawShadowText(placed[1].x, placed[1].y, text, _MIDSIZE, color)
   end
-
-  drawShadowText(textX, textY, text, _MIDSIZE, color)
 end
 
 local function drawFilledSquare(cx, cy, size, color)
@@ -664,33 +637,11 @@ function M.draw(bounds, telemetry, state, theme)
   _TEXT_SHADOW_COLOR = (theme and theme.isLight) and _LIGHT_TEXT_SHADOW or _BLACK
   ensureIconsLoaded(theme)
 
-  local sideW = math.max(84, math.floor(bounds.w * 0.19))
-  sideW = math.min(sideW, 116)
+  local cells = gridCells(bounds.x, bounds.y, bounds.w, bounds.h, GRID_WEIGHTS)
+  local leftSection, sticksArea, rightSection = cells[1], cells[2], cells[3]
 
-  local rightSection = {
-    x = bounds.x + bounds.w - sideW,
-    y = bounds.y,
-    w = sideW,
-    h = bounds.h,
-  }
-
-  local leftSection = {
-    x = bounds.x,
-    y = bounds.y,
-    w = sideW,
-    h = bounds.h,
-  }
-
-  local sticksArea = {
-    x = bounds.x + sideW + STICK_SIDE_GAP,
-    y = bounds.y,
-    w = bounds.w - (sideW * 2) - (STICK_SIDE_GAP * 2),
-    h = bounds.h,
-  }
-
-  if sticksArea.w < 64 then
-    sticksArea.x = bounds.x
-    sticksArea.w = bounds.w - sideW - STICK_SIDE_GAP
+  if not leftSection or not sticksArea or not rightSection then
+    return
   end
 
   local pad = 4
@@ -707,20 +658,24 @@ function M.draw(bounds, telemetry, state, theme)
     return
   end
 
-  local totalW = boxSize * 2 + gap
-  local startX = sticksArea.x + math.floor((sticksArea.w - totalW) / 2)
-  local startY = sticksArea.y + math.floor((sticksArea.h - boxSize) / 2)
+  -- Both stick boxes move as one centered group within the Sticks cell,
+  -- same as the icon+text groups in the side cells.
+  local placedSticks = centerGroup(sticksArea, {
+    { w = boxSize, h = boxSize },
+    { w = gap },
+    { w = boxSize, h = boxSize },
+  })
 
   local leftRect = {
-    x = startX,
-    y = startY,
+    x = placedSticks[1].x,
+    y = placedSticks[1].y,
     w = boxSize,
     h = boxSize,
   }
 
   local rightRect = {
-    x = startX + boxSize + gap,
-    y = startY,
+    x = placedSticks[3].x,
+    y = placedSticks[3].y,
     w = boxSize,
     h = boxSize,
   }
