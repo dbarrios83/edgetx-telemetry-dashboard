@@ -290,12 +290,25 @@ exists.
 Two categories of module state exist in this codebase, and they are
 treated differently:
 
-- **Shared code, safe to keep at module scope:** `layout/layout.lua` and
-  every `render/*.lua` module are pure/stateless -- they take their
-  inputs as arguments and hold no mutable state between calls. Loading
-  one shared copy per widget script (not per instance) is both correct
-  and desirable; see Section 8's deferred-loading discussion in
-  `main.lua`.
+- **Shared code, safe to keep at module scope:** `layout/layout.lua` is
+  pure/stateless -- it takes its inputs as arguments and holds no mutable
+  state between calls. The `render/*.lua` modules are not fully
+  stateless: `render/context.lua`, `render/sticks.lua`,
+  `render/topbar.lua`, and `render/timers.lua` each keep a module-level
+  icon-set cache keyed by theme folder (`dark`/`light`), and
+  `render/sticks.lua`/`render/topbar.lua` also recompute a
+  theme-dependent shadow-color local inside `M.draw()`. This is safe to
+  share across every instance of the widget precisely because it's
+  *derived, bounded, and theme-keyed* -- for a given theme there is only
+  ever one correct icon set or shadow color, so two instances on the same
+  theme option converge on the same cached value instead of fighting over
+  it, and a bounded two-entry cache (one per theme) can't grow unbounded.
+  See `tests/spec/icon_cache_spec.lua` for the regression this cache
+  keying fixes (module-level state that remembered only the
+  *most-recently-drawn* theme used to thrash on every alternating-theme
+  redraw). Loading one shared copy of each render module per widget
+  script (not per instance) is both correct and desirable for this
+  reason; see Section 8's deferred-loading discussion in `main.lua`.
 - **Mutable per-instance state, must live on the widget table:**
   `telemetry/read.lua`'s sensor-ID cache and rescan counter, and
   `telemetry/battery.lua`'s latched cell count, previously lived as

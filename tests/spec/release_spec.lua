@@ -90,16 +90,33 @@ return function(t, mock, paths)
   end)
 
   t.describe("release packaging: icon references resolve to a real file", function()
-    t.it("every openBitmapFromCandidates() call has at least one candidate that exists under icons/", function()
-      -- Build the set of real icon basenames present anywhere under
-      -- icons/ (any subfolder -- dark/light/battery/link/flat all share
-      -- one flat namespace of filenames in this codebase).
+    t.it("every openBitmapFromCandidates() call resolves for both the dark and the light theme", function()
+      -- Bucket real icon basenames by which theme(s) can actually reach
+      -- them: icons/dark/* and icons/light/* only resolve for their own
+      -- theme, everything else (icons/battery/*, icons/link/*, and any
+      -- flat icons/*.png) is theme-agnostic and resolves for both -- see
+      -- each render/*.lua's loadIconSet()/buildThemedRoots() for the
+      -- actual root lists this mirrors.
+      --
+      -- A flat basename-anywhere-under-icons/ check (the original version
+      -- of this test) can't tell "exists for the dark theme" from "exists
+      -- for the light theme" apart, so it would pass even if e.g.
+      -- icons/dark/current.png were deleted and only icons/light/
+      -- current.png remained -- found via external review (2026-08-07).
       local iconFiles = paths.listFiles(paths.WIDGET_DIR .. "icons", "%.png$")
-      local exists = {}
+      local existsForTheme = { dark = {}, light = {} }
       for _, path in ipairs(iconFiles) do
-        local basename = path:match("([^/\\]+)$")
+        local normalized = path:gsub("\\", "/")
+        local basename = normalized:match("([^/]+)$")
         if basename then
-          exists[basename] = true
+          if normalized:find("/icons/dark/", 1, true) then
+            existsForTheme.dark[basename] = true
+          elseif normalized:find("/icons/light/", 1, true) then
+            existsForTheme.light[basename] = true
+          else
+            existsForTheme.dark[basename] = true
+            existsForTheme.light[basename] = true
+          end
         end
       end
       t.assertTrue(#iconFiles > 0, "expected to find at least one .png under " .. paths.WIDGET_DIR .. "icons")
@@ -109,15 +126,18 @@ return function(t, mock, paths)
         local content = paths.readFile(file)
         if content then
           for _, candidates in ipairs(extractIconCalls(content)) do
-            local found = false
-            for _, name in ipairs(candidates) do
-              if exists[name] then
-                found = true
-                break
+            for _, themeName in ipairs({ "dark", "light" }) do
+              local found = false
+              for _, name in ipairs(candidates) do
+                if existsForTheme[themeName][name] then
+                  found = true
+                  break
+                end
               end
-            end
-            if not found then
-              problems[#problems + 1] = file .. ": none of [" .. table.concat(candidates, ", ") .. "] exist under icons/"
+              if not found then
+                problems[#problems + 1] = file .. " (" .. themeName .. " theme): none of [" ..
+                  table.concat(candidates, ", ") .. "] resolve under icons/"
+              end
             end
           end
         end

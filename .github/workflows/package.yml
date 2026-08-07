@@ -43,8 +43,17 @@ jobs:
           # always exactly SCRIPTS/WIDGETS/FPVDASH's contents, nothing
           # more or less, matching the manual "copy the FPVDASH folder
           # into /WIDGETS/" step in README.md's Installation Steps.
+          #
+          # `zip -r`'s own directory traversal order isn't a documented
+          # guarantee -- it follows readdir(), which reflects filesystem
+          # entry order, not any stable sort. A fresh actions/checkout
+          # has been observed to produce it consistently, but that's an
+          # accident of the checkout implementation, not a contract, so
+          # entry order is pinned explicitly here: a locale-stable sorted
+          # file list piped into `zip -X -@` (found via external review,
+          # 2026-08-07).
           cd SCRIPTS/WIDGETS
-          zip -rX ../../dist/FPVDASH.zip FPVDASH
+          LC_ALL=C find FPVDASH -type f | LC_ALL=C sort | zip -X -@ ../../dist/FPVDASH.zip
           cd ../..
           echo "Archive contents:"
           unzip -l dist/FPVDASH.zip
