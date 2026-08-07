@@ -66,7 +66,7 @@ function M.compute(zone)
 
     contextH, deficit = shrink(contextH, 16, deficit)
     stickH,   deficit = shrink(stickH,   44, deficit)
-    topBarH,  deficit = shrink(topBarH,  18, deficit)
+    topBarH            = shrink(topBarH, 18, deficit)
 
     primaryH = h - (topBarH + stickH + contextH + footerH + (gap * numGaps))
   end

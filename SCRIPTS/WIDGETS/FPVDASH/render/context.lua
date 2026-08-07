@@ -58,7 +58,6 @@ local _SMLSIZE = (type(SMLSIZE) == "number") and SMLSIZE or 0
 local ICON_TINT_COLOR = nil
 local ICON_SIZE = 24
 local ICON_TEXT_GAP = 8
-local TEXT_CHAR_W = 5
 local TEXT_H = 8
 local TEXT_Y_OFFSET = -4
 local TEXT_SLOT_W = 34
@@ -269,19 +268,6 @@ local function formatSat(raw)
   return tostring(math.floor(n + 0.5))
 end
 
-local function formatAntenna(raw)
-  local n = toNumber(raw)
-  if n then
-    return "ANT" .. tostring(math.floor(n + 0.5))
-  end
-
-  if type(raw) == "string" and raw ~= "" then
-    return raw
-  end
-
-  return "ANT-"
-end
-
 local function formatCapacity(raw)
   local n = toNumber(raw)
   if not n then
@@ -358,7 +344,7 @@ function M.draw(rect, telemetry, state, theme)
     end
     fmText = formatFlightMode(fm)
     snrText = formatRssi(rsnr)
-    capText = formatCapacity and formatCapacity(cap) or (toNumber(cap) and tostring(math.floor(toNumber(cap) + 0.5)) .. "mAh" or "N/A")
+    capText = formatCapacity(cap)
   else
     -- Disconnected view: keep placeholders compact (no units / no ANT prefix).
     curText = "--"

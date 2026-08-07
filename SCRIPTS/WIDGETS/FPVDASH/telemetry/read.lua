@@ -342,7 +342,7 @@ end
 
 local function assignNumeric(session, field, normalizer, extra)
   local raw = readFirst(session, FIELD_SENSORS[field])
-  local value = nil
+  local value
 
   if normalizer then
     value = normalizer(raw, extra)

@@ -21,6 +21,12 @@ std = "max" -- union of Lua 5.1-5.4 stdlib, since the test harness runs on any o
 -- issue, so unused-argument warnings would just be noise.
 unused_args = false
 
+-- Test failure messages here are deliberately long, specific prose (what
+-- broke, and why it matters) rather than terse labels -- see any
+-- tests/spec/*.lua file. A wrap policy would force splitting those
+-- strings for no readability gain, so line length isn't checked.
+max_line_length = false
+
 read_globals = {
   -- Sensor / telemetry read API
   "getValue", "getFieldInfo", "getFlightMode", "getRSSI", "getTime",
@@ -47,4 +53,12 @@ files["tests/mock_edgetx.lua"] = {
   -- globals above for the desktop test harness, so unlike every other
   -- file here, it legitimately assigns to them.
   globals = read_globals,
+}
+
+files["tests/spec/icon_cache_spec.lua"] = {
+  -- Wraps the mock's Bitmap.open with a call-counting spy (see
+  -- countBitmapOpens()), which needs write access to the Bitmap global
+  -- mock_edgetx.lua already installed -- everywhere else Bitmap stays
+  -- read-only.
+  globals = { "Bitmap" },
 }

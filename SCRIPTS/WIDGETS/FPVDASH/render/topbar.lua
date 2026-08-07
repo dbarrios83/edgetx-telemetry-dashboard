@@ -53,7 +53,6 @@ local _YELLOW   = (type(YELLOW)   == "number") and YELLOW   or 0xFFE0
 local _RED      = (type(RED)      == "number") and RED      or 0xF800
 local _BLACK    = 0x0000
 local _BOLD     = (type(BOLD)     == "number") and BOLD     or 0
-local _SHADOWED = (type(SHADOWED) == "number") and SHADOWED or 0
 local LINK_ICON_W = 24
 local LINK_ICON_H = 24
 local TX_TEXT_H = 12
@@ -73,18 +72,7 @@ local function themeColor(themeToken, fallback)
   return fallback
 end
 
-local _THEME_PRIMARY = themeColor((type(THEME_PRIMARY) == "number") and THEME_PRIMARY or nil, _WHITE)
-local _THEME_SECONDARY = themeColor((type(THEME_SECONDARY) == "number") and THEME_SECONDARY or nil, _WHITE)
-local _THEME_FOCUS = themeColor((type(THEME_FOCUS) == "number") and THEME_FOCUS or nil, _GREEN)
 local _THEME_WARNING = themeColor((type(THEME_WARNING) == "number") and THEME_WARNING or nil, _YELLOW)
-
-local function tf(size, color)
-  if type(color) == "number" and lcd and type(lcd.setColor) == "function" and type(CUSTOM_COLOR) == "number" then
-    lcd.setColor(CUSTOM_COLOR, color)
-    return size + CUSTOM_COLOR
-  end
-  return size
-end
 
 -- Shadow color here is theme-aware (see _TEXT_SHADOW_COLOR, set from
 -- theme.isLight in M.draw()) -- deliberately different from render/

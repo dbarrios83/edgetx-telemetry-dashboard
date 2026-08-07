@@ -12,7 +12,6 @@
 return function(t, mock, paths)
   local function countLoadScriptCallsEndingWith(suffix)
     local count = 0
-    local original
     return {
       install = function(fixture)
         fixture = fixture or {}

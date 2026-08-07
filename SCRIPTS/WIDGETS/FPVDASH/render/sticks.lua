@@ -52,7 +52,6 @@ local _GREEN  = (type(GREEN) == "number") and GREEN or _WHITE
 local _YELLOW = (type(YELLOW) == "number") and YELLOW or _WHITE
 local _RED    = (type(RED) == "number") and RED or _YELLOW
 local _BLACK  = 0x0000
-local _SHADOWED = (type(SHADOWED) == "number") and SHADOWED or 0
 
 local _SMLSIZE = (type(SMLSIZE) == "number") and SMLSIZE or 0
 local _MIDSIZE = (type(MIDSIZE) == "number") and MIDSIZE or _SMLSIZE
@@ -68,7 +67,6 @@ local SHOW_STICK_AXIS = false
 local SHOW_STICK_VALUES = false
 local STICK_DOT_SIZE = 7
 local STICK_DOT_BORDER_THICKNESS = 1
-local STICK_ACTIVE_DEADZONE = 6
 local STICK_BORDER_THICKNESS = 2
 -- One-line border color override for visual testing.
 -- Set to: "theme", "white", "red", "green", "yellow", "black", "gray", "grey"
@@ -114,15 +112,6 @@ end
 local _THEME_PRIMARY = themeColor((type(THEME_PRIMARY) == "number") and THEME_PRIMARY or nil, _WHITE)
 local _THEME_SECONDARY = themeColor((type(THEME_SECONDARY) == "number") and THEME_SECONDARY or nil, _WHITE)
 local _THEME_FOCUS = themeColor((type(THEME_FOCUS) == "number") and THEME_FOCUS or nil, _GREEN)
-local _THEME_WARNING = themeColor((type(THEME_WARNING) == "number") and THEME_WARNING or _YELLOW, _YELLOW)
-
-local function tf(size, color)
-  if type(color) == "number" and lcd and type(lcd.setColor) == "function" and type(CUSTOM_COLOR) == "number" then
-    lcd.setColor(CUSTOM_COLOR, color)
-    return size + CUSTOM_COLOR
-  end
-  return size
-end
 
 local function setCustomColor(color)
   if lcd and type(lcd.setColor) == "function" and type(CUSTOM_COLOR) == "number" and type(color) == "number" then
@@ -146,7 +135,6 @@ local CONNECTION_ICONS = {
 }
 
 local _iconsLoaded = false
-local _loadedIconFolder = nil
 local _TEXT_COLOR = _WHITE
 local _TEXT_SHADOW_COLOR = _BLACK
 local _LIGHT_TEXT_SHADOW = _WHITE
@@ -617,10 +605,6 @@ local function drawStickValues(leftRect, rightRect, yaw, throttle, roll, pitch)
   drawShadowText(leftX, bottomY, rText, _SMLSIZE, _TEXT_COLOR)
   drawShadowText(rightX, topY, eText, _SMLSIZE, _TEXT_COLOR)
   drawShadowText(rightX, bottomY, aText, _SMLSIZE, _TEXT_COLOR)
-end
-
-local function isStickActive(xValue, yValue)
-  return math.abs(xValue) > STICK_ACTIVE_DEADZONE or math.abs(yValue) > STICK_ACTIVE_DEADZONE
 end
 
 local function drawStickAxes(rect)
