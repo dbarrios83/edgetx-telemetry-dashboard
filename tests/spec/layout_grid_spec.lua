@@ -15,6 +15,7 @@ return function(t, mock, paths)
   local RX_BATTERY_ICON_W, RX_BATTERY_ICON_H = 20, 32
   local LINK_ICON_W, LINK_ICON_H = 24, 24
   local TX_BATTERY_ICON_W, TX_BATTERY_ICON_H = 30, 32
+  local DATE_TIME_TEXT_CHAR_W = 7
 
   local THEME = { textColor = 0xFFFF, iconFolder = "dark", isLight = false }
 
@@ -243,17 +244,18 @@ return function(t, mock, paths)
         t.assertNotNil(txIcon, "TX battery icon renders")
         t.assertTrue(withinCellX(txIcon.x, TX_BATTERY_ICON_W, expected[3]),
           "TX battery icon stays within cell 3 (TX Battery, 20%)")
+        t.assertTrue(txIcon.x < expected[3].x + 10, "TX battery icon is left-aligned near cell 3's left edge, not centered")
 
         local linkIcon = bitmapCallContaining(bitmaps, "link")
         t.assertNotNil(linkIcon, "connection icon renders")
         t.assertTrue(withinCellX(linkIcon.x, LINK_ICON_W, expected[4]),
           "connection icon stays within cell 4 (Receiver Connection, 16%)")
 
-        -- Date and time render as one line ("14:05 3 Aug"), right-aligned.
-        local dateTimeCall = textCallContaining(texts, "14:05 3 Aug")
-        t.assertNotNil(dateTimeCall, "date and time render as a single line")
+        -- Date and time render as one line ("3 Aug 14:05"), right-aligned.
+        local dateTimeCall = textCallContaining(texts, "3 Aug 14:05")
+        t.assertNotNil(dateTimeCall, "date and time render as a single line, date first")
         t.assertTrue(withinCellX(dateTimeCall.x, 0, expected[5]), "date/time line stays within cell 5 (Date-Time, 18%)")
-        t.assertTrue(dateTimeCall.x + (#"14:05 3 Aug" * 4) > expected[5].x + expected[5].w - 20,
+        t.assertTrue(dateTimeCall.x + (#"3 Aug 14:05" * DATE_TIME_TEXT_CHAR_W) > expected[5].x + expected[5].w - 20,
           "date/time line is right-aligned near cell 5's right edge, not centered")
 
         t.assertTrue(modelCall.x < txIcon.x, "Model cell is left of TX Battery cell")

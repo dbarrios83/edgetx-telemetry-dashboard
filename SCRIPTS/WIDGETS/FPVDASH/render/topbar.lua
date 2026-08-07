@@ -76,14 +76,22 @@ local GRID_WEIGHTS = { 10, 36, 20, 16, 18 }
 local MODEL_TEXT_CHAR_W = 13
 local MODEL_TEXT_H = 35
 local MODEL_TEXT_PADDING = 12
-local TX_TEXT_CHAR_W = 5
 local TX_TEXT_H = 8
 local TX_BATTERY_ICON_W = 30
 local TX_BATTERY_ICON_H = 32
 local TX_ICON_TEXT_GAP = 4
-local DATE_TIME_TEXT_CHAR_W = 4
+local TX_LEFT_PADDING = 4
+-- DATE_TIME_TEXT_CHAR_W was 4 -- badly underestimated the real SMLSIZE
+-- width, and because this cell sits flush against the widget's right
+-- edge (no neighbor cell to visibly absorb the error, unlike the Model
+-- cell overlap Task 5 fixed earlier), the real text ran off the visible
+-- screen entirely rather than just looking off. Widened deliberately on
+-- the generous side: overestimating here only shifts the right-aligned
+-- text a bit further left (safe), while underestimating cuts it off
+-- (unrecoverable without a text-measurement API EdgeTX doesn't expose).
+local DATE_TIME_TEXT_CHAR_W = 7
 local DATE_TIME_TEXT_H = 8
-local DATE_TIME_RIGHT_PADDING = 6
+local DATE_TIME_RIGHT_PADDING = 4
 
 local _TEXT_COLOR = _WHITE
 local _TEXT_SHADOW_COLOR = _BLACK
@@ -456,43 +464,43 @@ local function drawBatteryGlyph(x, y, state)
   return false
 end
 
+-- Icon + value anchor to the cell's left edge (not centered), each
+-- vertically centered independently within the cell -- same left-align
+-- treatment as the model name, per direct user instruction.
 local function drawTxBattery(rect, txV, txState)
   local txText = txV and string.format("%.1fV", txV) or "--.-V"
   local txColor = txV and _TEXT_COLOR or _THEME_WARNING
-  local textW = #txText * TX_TEXT_CHAR_W
 
-  -- Icon + value move as one centered group: reserve the icon column
-  -- whenever lcd is available, since either the PNG icon or the vector
-  -- glyph fallback (drawBatteryGlyph) will draw into it.
   local icon = resolveTxBatteryIcon(txState)
+  -- Reserve the icon column whenever lcd is available, since either the
+  -- PNG icon or the vector glyph fallback (drawBatteryGlyph) will draw
+  -- into it.
   local hasIconArea = (icon ~= nil) or (lcd ~= nil)
 
-  local parts
+  local iconX = rect.x + TX_LEFT_PADDING
+  local textX = iconX
   if hasIconArea then
-    parts = { { w = TX_BATTERY_ICON_W, h = TX_BATTERY_ICON_H }, { w = TX_ICON_TEXT_GAP }, { w = textW, h = TX_TEXT_H } }
-  else
-    parts = { { w = textW, h = TX_TEXT_H } }
-  end
-  local placed = centerGroup(rect, parts)
-
-  if icon then
-    lcd.drawBitmap(icon, placed[1].x, placed[1].y)
-  elseif hasIconArea then
-    local glyphH = 9
-    local glyphY = placed[1].y + math.floor((TX_BATTERY_ICON_H - glyphH) / 2)
-    drawBatteryGlyph(placed[1].x + 1, glyphY, txState)
+    local iconY = centerStart(rect.y, rect.h, TX_BATTERY_ICON_H)
+    if icon then
+      lcd.drawBitmap(icon, iconX, iconY)
+    else
+      local glyphH = 9
+      local glyphY = iconY + math.floor((TX_BATTERY_ICON_H - glyphH) / 2)
+      drawBatteryGlyph(iconX + 1, glyphY, txState)
+    end
+    textX = iconX + TX_BATTERY_ICON_W + TX_ICON_TEXT_GAP
   end
 
-  local textPart = hasIconArea and placed[3] or placed[1]
-  drawShadowText(textPart.x, textPart.y, txText, SMLSIZE, txColor)
+  local textY = centerStart(rect.y, rect.h, TX_TEXT_H)
+  drawShadowText(textX, textY, txText, SMLSIZE, txColor)
 end
 
--- One line ("<time> <date>"), vertically centered, right-aligned within
+-- One line ("<date> <time>"), vertically centered, right-aligned within
 -- the cell -- flush toward the widget's right edge like the pre-Task-3
 -- layout, but computed from the cell's own bounds instead of a fixed
 -- rightPad hack.
 local function drawDateTime(rect, timeText, dateText)
-  local text = timeText .. " " .. dateText
+  local text = dateText .. " " .. timeText
   local textW = #text * DATE_TIME_TEXT_CHAR_W
 
   local textX = rect.x + rect.w - textW - DATE_TIME_RIGHT_PADDING
