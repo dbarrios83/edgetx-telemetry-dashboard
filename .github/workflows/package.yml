@@ -2,20 +2,21 @@ name: Package
 
 # Builds the SD-card-ready FPVDASH release zip on every push/PR (as a
 # downloadable build artifact, so a reviewer can grab it and test in
-# EdgeTX Companion without checking out the branch), and attaches it to
-# a GitHub Release when a "v*" tag is pushed.
+# EdgeTX Companion without checking out the branch). Only the tag-only
+# release job needs write access to the repo (to create/update a GitHub
+# Release), so it's split into its own job with its own permissions --
+# build/test never runs with contents:write, including pull_request runs.
 on:
   push:
     branches: [master]
     tags: ["v*"]
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
-  package:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -28,11 +29,20 @@ jobs:
       - name: Build release zip
         run: |
           mkdir -p dist
-          # -X drops extra file attributes (extended timestamps, etc.) so
-          # the archive's metadata doesn't vary run-to-run; the file set
-          # itself is always exactly SCRIPTS/WIDGETS/FPVDASH's contents,
-          # nothing more or less, matching the manual "copy the FPVDASH
-          # folder into /WIDGETS/" step in README.md's Installation Steps.
+          # Normalize every file's mtime to the commit's own timestamp,
+          # so rebuilding the same commit later produces a byte-identical
+          # archive -- -X alone drops extra file attributes but does not
+          # touch entry mtimes, which otherwise vary with wall-clock
+          # checkout time on every run regardless of content.
+          SOURCE_DATE=$(git log -1 --format=%ct)
+          find SCRIPTS/WIDGETS/FPVDASH -exec touch -d "@${SOURCE_DATE}" {} +
+
+          # -X drops extra file attributes (extended timestamps, Unix
+          # UID/GID, etc.), so only file content and the now-normalized
+          # mtimes determine the archive's bytes. The file set itself is
+          # always exactly SCRIPTS/WIDGETS/FPVDASH's contents, nothing
+          # more or less, matching the manual "copy the FPVDASH folder
+          # into /WIDGETS/" step in README.md's Installation Steps.
           cd SCRIPTS/WIDGETS
           zip -rX ../../dist/FPVDASH.zip FPVDASH
           cd ../..
@@ -46,12 +56,38 @@ jobs:
           path: dist/FPVDASH.zip
           if-no-files-found: error
 
-      - name: Attach to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+  release:
+    # Only a "v*" tag push reaches this job -- pull_request and plain
+    # branch-push runs stop at build, so contents:write is never
+    # available to them. Reuses build's artifact rather than rebuilding,
+    # so the exact bytes that were tested are what gets released.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: FPVDASH
+          path: dist
+
+      - name: Create or update the GitHub Release (idempotent)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" dist/FPVDASH.zip \
-            --title "${{ github.ref_name }}" \
-            --generate-notes \
-            --repo "${{ github.repository }}"
+          TAG="${{ github.ref_name }}"
+          REPO="${{ github.repository }}"
+          # `gh release create` fails outright if the release already
+          # exists -- e.g. a rerun after a prior attempt already created
+          # it. Check first, create only if missing, then always upload
+          # with --clobber so a rerun replaces the asset instead of
+          # failing on "already exists".
+          if ! gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --generate-notes \
+              --repo "$REPO"
+          fi
+          gh release upload "$TAG" dist/FPVDASH.zip --clobber --repo "$REPO"
