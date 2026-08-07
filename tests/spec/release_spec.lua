@@ -15,6 +15,80 @@ return function(t, mock, paths)
     return paths.listFiles(paths.WIDGET_DIR, "%.lua$")
   end
 
+  -- Extracts every openBitmapFromCandidates(roots, {...}) call's
+  -- candidate filename list from `content`, as an array of arrays (one
+  -- inner array per call site, since it's a fallback list -- only one
+  -- candidate needs to exist, not all of them; see the icon-check
+  -- describe block below). Tolerates whitespace between the function
+  -- name and "(", and either quote style for the string literals --
+  -- found missing in external review (2026-08-07): the original pattern
+  -- only matched a directly-adjacent "(" and double-quoted strings, so a
+  -- call written in valid-but-different Lua style could silently bypass
+  -- the check entirely rather than being flagged.
+  local function extractIconCalls(content)
+    local calls = {}
+    for namesBlock in content:gmatch("openBitmapFromCandidates%s*%(%s*[%w_]+%s*,%s*%{(.-)%}%s*%)") do
+      local candidates = {}
+      for name in namesBlock:gmatch('"([%w%-_%.]+%.png)"') do
+        candidates[#candidates + 1] = name
+      end
+      for name in namesBlock:gmatch("'([%w%-_%.]+%.png)'") do
+        candidates[#candidates + 1] = name
+      end
+      if #candidates > 0 then
+        calls[#calls + 1] = candidates
+      end
+    end
+    return calls
+  end
+
+  -- Extracts every loadModule()/loadSiblingModule() literal path
+  -- argument from `content`, as { callName, path } entries. Same
+  -- whitespace/quote tolerance as extractIconCalls, and for the same
+  -- reason.
+  local function extractModuleLoadRefs(content)
+    local refs = {}
+    -- Lua patterns have no alternation, so loadModule() and
+    -- loadSiblingModule() are matched in separate passes rather than one
+    -- combined pattern.
+    local CALL_NAMES = { "loadModule", "loadSiblingModule" }
+    for _, callName in ipairs(CALL_NAMES) do
+      for relativePath in content:gmatch(callName .. '%s*%(%s*"([^"]+)"%s*%)') do
+        refs[#refs + 1] = { callName = callName, path = relativePath }
+      end
+      for relativePath in content:gmatch(callName .. "%s*%(%s*'([^']+)'%s*%)") do
+        refs[#refs + 1] = { callName = callName, path = relativePath }
+      end
+    end
+    return refs
+  end
+
+  t.describe("release packaging: extraction pattern robustness", function()
+    t.it("finds openBitmapFromCandidates() candidates regardless of quote style or whitespace before '('", function()
+      local calls = extractIconCalls([[
+        local a = openBitmapFromCandidates(roots, { "double.png" })
+        local b = openBitmapFromCandidates (roots, { 'single.png' })
+        local c = openBitmapFromCandidates  (  roots , { "spaced.png" } )
+      ]])
+      t.assertEqual(#calls, 3)
+      t.assertEqual(calls[1][1], "double.png")
+      t.assertEqual(calls[2][1], "single.png")
+      t.assertEqual(calls[3][1], "spaced.png")
+    end)
+
+    t.it("finds loadModule()/loadSiblingModule() paths regardless of quote style or whitespace before '('", function()
+      local refs = extractModuleLoadRefs([[
+        local a = loadModule("double/quoted.lua")
+        local b = loadModule ('single/quoted.lua')
+        local c = loadSiblingModule  (  "spaced.lua"  )
+      ]])
+      t.assertEqual(#refs, 3)
+      t.assertEqual(refs[1].path, "double/quoted.lua")
+      t.assertEqual(refs[2].path, "single/quoted.lua")
+      t.assertEqual(refs[3].path, "spaced.lua")
+    end)
+  end)
+
   t.describe("release packaging: icon references resolve to a real file", function()
     t.it("every openBitmapFromCandidates() call has at least one candidate that exists under icons/", function()
       -- Build the set of real icon basenames present anywhere under
@@ -34,29 +108,16 @@ return function(t, mock, paths)
       for _, file in ipairs(widgetLuaFiles()) do
         local content = paths.readFile(file)
         if content then
-          -- Each openBitmapFromCandidates(roots, { "a.png", "b.png", ... })
-          -- call is a fallback list -- only one candidate needs to exist,
-          -- not all of them (e.g. context.lua's { "sat.png", "sats.png" }
-          -- deliberately keeps a name that has never shipped as a
-          -- forward-compatible fallback). So candidates are grouped per
-          -- call, not flattened across the whole file.
-          for namesBlock in content:gmatch("openBitmapFromCandidates%s*%([%w_]+%s*,%s*%{(.-)%}%s*%)") do
-            local candidates = {}
-            for name in namesBlock:gmatch('"([%w%-_%.]+%.png)"') do
-              candidates[#candidates + 1] = name
+          for _, candidates in ipairs(extractIconCalls(content)) do
+            local found = false
+            for _, name in ipairs(candidates) do
+              if exists[name] then
+                found = true
+                break
+              end
             end
-
-            if #candidates > 0 then
-              local found = false
-              for _, name in ipairs(candidates) do
-                if exists[name] then
-                  found = true
-                  break
-                end
-              end
-              if not found then
-                problems[#problems + 1] = file .. ": none of [" .. table.concat(candidates, ", ") .. "] exist under icons/"
-              end
+            if not found then
+              problems[#problems + 1] = file .. ": none of [" .. table.concat(candidates, ", ") .. "] exist under icons/"
             end
           end
         end
@@ -70,19 +131,12 @@ return function(t, mock, paths)
     t.it("every loadModule()/loadSiblingModule() literal path resolves under SCRIPTS/WIDGETS/FPVDASH", function()
       local problems = {}
 
-      -- Lua patterns have no alternation, so loadModule() and
-      -- loadSiblingModule() are matched in two separate passes rather
-      -- than one combined pattern.
-      local CALL_PATTERNS = { "loadModule", "loadSiblingModule" }
-
       for _, file in ipairs(widgetLuaFiles()) do
         local content = paths.readFile(file)
         if content then
-          for _, callName in ipairs(CALL_PATTERNS) do
-            for relativePath in content:gmatch(callName .. '%("([^"]+)"%)') do
-              if not paths.readFile(paths.widget(relativePath)) then
-                problems[#problems + 1] = file .. ": " .. callName .. '("' .. relativePath .. '") does not resolve to a real file'
-              end
+          for _, ref in ipairs(extractModuleLoadRefs(content)) do
+            if not paths.readFile(paths.widget(ref.path)) then
+              problems[#problems + 1] = file .. ": " .. ref.callName .. '("' .. ref.path .. '") does not resolve to a real file'
             end
           end
         end
