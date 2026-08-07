@@ -66,24 +66,24 @@ local GRID_WEIGHTS = { 10, 36, 20, 16, 18 }
 -- EdgeTX widget text has no runtime glyph-metrics API, so these are
 -- documented per-character/line-height estimates used only to size
 -- content for the group-centering math below, not measured values.
--- First-pass estimates were visibly wrong in EdgeTX Companion (Task 5
--- pass, 2026-08-07): MODEL_TEXT_CHAR_W=6 underestimated the real BOLD
--- MIDSIZE glyph width badly enough that the model name's actual rendered
--- width overran the Model cell and was overlapped by the TX Battery
--- icon; TX_TEXT_H=12 was too short for MIDSIZE, so TX battery text and
--- its icon did not share a visual center. Both widened; revisit if still
--- off.
+--
+-- Third Companion pass (2026-08-07), per direct user instruction: model
+-- name is now left-aligned in its cell rather than centered (still uses
+-- MODEL_TEXT_CHAR_W to size the truncation budget, just not to compute a
+-- centered X anymore). TX battery text drops to _SMLSIZE (from _MIDSIZE)
+-- and stays vertically centered next to its icon. Date and time collapse
+-- to one right-aligned line instead of a centered stacked pair.
 local MODEL_TEXT_CHAR_W = 13
 local MODEL_TEXT_H = 35
 local MODEL_TEXT_PADDING = 12
-local TX_TEXT_CHAR_W = 8
-local TX_TEXT_H = 20
+local TX_TEXT_CHAR_W = 5
+local TX_TEXT_H = 8
 local TX_BATTERY_ICON_W = 30
 local TX_BATTERY_ICON_H = 32
 local TX_ICON_TEXT_GAP = 4
 local DATE_TIME_TEXT_CHAR_W = 4
 local DATE_TIME_TEXT_H = 8
-local DATE_TIME_ROW_GAP = 5
+local DATE_TIME_RIGHT_PADDING = 6
 
 local _TEXT_COLOR = _WHITE
 local _TEXT_SHADOW_COLOR = _BLACK
@@ -160,8 +160,8 @@ local gridCells = (primitivesModule and primitivesModule.gridCells)
   or function() return {} end
 local centerGroup = (primitivesModule and primitivesModule.centerGroup)
   or function() return {} end
-local centerGroupVertical = (primitivesModule and primitivesModule.centerGroupVertical)
-  or function() return {} end
+local centerStart = (primitivesModule and primitivesModule.centerStart)
+  or function(outerStart) return outerStart end
 
 -- Icons are loaded lazily on the first draw call so that the Bitmap API is
 -- guaranteed to be available (EdgeTX only exposes it inside widget callbacks).
@@ -484,21 +484,24 @@ local function drawTxBattery(rect, txV, txState)
   end
 
   local textPart = hasIconArea and placed[3] or placed[1]
-  drawShadowText(textPart.x, textPart.y, txText, MIDSIZE, txColor)
+  drawShadowText(textPart.x, textPart.y, txText, SMLSIZE, txColor)
 end
 
+-- One line ("<time> <date>"), vertically centered, right-aligned within
+-- the cell -- flush toward the widget's right edge like the pre-Task-3
+-- layout, but computed from the cell's own bounds instead of a fixed
+-- rightPad hack.
 local function drawDateTime(rect, timeText, dateText)
-  local timeW = #timeText * DATE_TIME_TEXT_CHAR_W
-  local dateW = #dateText * DATE_TIME_TEXT_CHAR_W
+  local text = timeText .. " " .. dateText
+  local textW = #text * DATE_TIME_TEXT_CHAR_W
 
-  local placed = centerGroupVertical(rect, {
-    { w = timeW, h = DATE_TIME_TEXT_H },
-    { w = 0, h = DATE_TIME_ROW_GAP },
-    { w = dateW, h = DATE_TIME_TEXT_H },
-  })
+  local textX = rect.x + rect.w - textW - DATE_TIME_RIGHT_PADDING
+  if textX < rect.x then
+    textX = rect.x
+  end
+  local textY = centerStart(rect.y, rect.h, DATE_TIME_TEXT_H)
 
-  drawShadowText(placed[1].x, placed[1].y, timeText, SMLSIZE, _TEXT_COLOR)
-  drawShadowText(placed[3].x, placed[3].y, dateText, SMLSIZE, _TEXT_COLOR)
+  drawShadowText(textX, textY, text, SMLSIZE, _TEXT_COLOR)
 end
 
 function M.draw(bounds, telemetry, state, theme)
@@ -521,10 +524,12 @@ function M.draw(bounds, telemetry, state, theme)
   -- logoCell is intentionally never drawn into: the EdgeTX telemetry-app
   -- layout supplies and positions that asset itself.
 
+  -- Left-aligned within its cell (not centered) -- still vertically
+  -- centered, and still truncates safely within the cell's width.
   local modelText = truncateText(readModelName(), modelCell.w - MODEL_TEXT_PADDING, MODEL_TEXT_CHAR_W)
-  local modelTextW = #modelText * MODEL_TEXT_CHAR_W
-  local modelPlaced = centerGroup(modelCell, { { w = modelTextW, h = MODEL_TEXT_H } })
-  drawShadowText(modelPlaced[1].x, modelPlaced[1].y, modelText, MIDSIZE, _TEXT_COLOR, _BOLD)
+  local modelX = modelCell.x + MODEL_TEXT_PADDING
+  local modelY = centerStart(modelCell.y, modelCell.h, MODEL_TEXT_H)
+  drawShadowText(modelX, modelY, modelText, MIDSIZE, _TEXT_COLOR, _BOLD)
 
   local txV, txState = readTxBatteryInfo()
   drawTxBattery(txBatCell, txV, txState)

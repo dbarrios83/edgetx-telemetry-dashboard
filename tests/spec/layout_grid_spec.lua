@@ -236,6 +236,7 @@ return function(t, mock, paths)
         local modelCall = textCallContaining(texts, "MyQuad")
         t.assertNotNil(modelCall, "model name renders as text")
         t.assertTrue(withinCellX(modelCall.x, 0, expected[2]), "model name stays within cell 2 (Model, 36%)")
+        t.assertTrue(modelCall.x < expected[2].x + 20, "model name is left-aligned near cell 2's left edge, not centered")
 
         local bitmaps = drawBitmapCalls(mock)
         local txIcon = bitmapCallContaining(bitmaps, "battery-")
@@ -248,17 +249,16 @@ return function(t, mock, paths)
         t.assertTrue(withinCellX(linkIcon.x, LINK_ICON_W, expected[4]),
           "connection icon stays within cell 4 (Receiver Connection, 16%)")
 
-        local timeCall = textCallContaining(texts, "14:05")
-        local dateCall = textCallContaining(texts, "3 Aug")
-        t.assertNotNil(timeCall, "time renders")
-        t.assertNotNil(dateCall, "date renders")
-        t.assertTrue(withinCellX(timeCall.x, 0, expected[5]), "time stays within cell 5 (Date-Time, 18%)")
-        t.assertTrue(withinCellX(dateCall.x, 0, expected[5]), "date stays within cell 5 (Date-Time, 18%)")
-        t.assertTrue(timeCall.y < dateCall.y, "time is stacked above date within the Date-Time cell")
+        -- Date and time render as one line ("14:05 3 Aug"), right-aligned.
+        local dateTimeCall = textCallContaining(texts, "14:05 3 Aug")
+        t.assertNotNil(dateTimeCall, "date and time render as a single line")
+        t.assertTrue(withinCellX(dateTimeCall.x, 0, expected[5]), "date/time line stays within cell 5 (Date-Time, 18%)")
+        t.assertTrue(dateTimeCall.x + (#"14:05 3 Aug" * 4) > expected[5].x + expected[5].w - 20,
+          "date/time line is right-aligned near cell 5's right edge, not centered")
 
         t.assertTrue(modelCall.x < txIcon.x, "Model cell is left of TX Battery cell")
         t.assertTrue(txIcon.x < linkIcon.x, "TX Battery cell is left of Connection cell")
-        t.assertTrue(linkIcon.x < timeCall.x, "Connection cell is left of Date-Time cell")
+        t.assertTrue(linkIcon.x < dateTimeCall.x, "Connection cell is left of Date-Time cell")
       end)
     end)
 
