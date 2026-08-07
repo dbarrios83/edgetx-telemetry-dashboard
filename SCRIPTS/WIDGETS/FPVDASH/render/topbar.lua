@@ -81,8 +81,6 @@ local function drawShadowText(x, y, text, size, color, extraFlags)
   end
 end
 
-local ICON_LINK_ON = nil
-local ICON_LINK_OFF = nil
 local ICON_TX_BATTERY = nil
 local BATTERY_ICONS = {
   full = nil,
@@ -128,8 +126,16 @@ local openBitmapFromCandidates = (primitivesModule and primitivesModule.openBitm
 
 -- Icons are loaded lazily on the first draw call so that the Bitmap API is
 -- guaranteed to be available (EdgeTX only exposes it inside widget callbacks).
-local _iconsLoaded = false
-local _loadedIconFolder = nil
+local _batteryIconsLoaded = false
+
+-- Link icons are cached by icon folder ("dark"/"light"), not loaded into
+-- shared module-level ICON_LINK_ON/ICON_LINK_OFF locals -- see
+-- render/context.lua's identical comment for why (two instances on
+-- different themes used to fight over the same variables, reopening
+-- both bitmaps every refresh() whenever the two instances' folders
+-- disagreed). Battery icons below are theme-independent and correctly
+-- stay module-level, loaded once regardless of theme.
+local _linkIconSets = {}
 
 -- The only icon paths that depend on a runtime value (iconFolder), so
 -- unlike ICON_ROOTS/BATTERY_ICON_ROOTS this can't be hoisted to a pure
@@ -148,43 +154,46 @@ local function buildThemedRoots(iconFolder)
   }
 end
 
+local function loadLinkIconSet(iconFolder)
+  local themedRoots = buildThemedRoots(iconFolder)
+  return {
+    ICON_LINK_ON = openBitmapFromCandidates(themedRoots, { "link.png" }),
+    ICON_LINK_OFF = openBitmapFromCandidates(themedRoots, { "link_off.png" }),
+  }
+end
+
+-- Loads the theme-independent battery icons once (if not already), then
+-- returns this theme's link icon set, loading and caching it on first
+-- request.
 local function ensureIconsLoaded(theme)
-  if not Bitmap or type(Bitmap.open) ~= "function" then return end
+  if not Bitmap or type(Bitmap.open) ~= "function" then return nil end
+
+  if not _batteryIconsLoaded then
+    ICON_TX_BATTERY = openBitmapFromCandidates(ICON_ROOTS, {
+      "tx_battery.png",
+      "battery.png",
+    })
+
+    BATTERY_ICONS.full = openBitmapFromCandidates(BATTERY_ICON_ROOTS, { "battery-full.png" })
+    BATTERY_ICONS.ok   = openBitmapFromCandidates(BATTERY_ICON_ROOTS, { "battery-ok.png" })
+    BATTERY_ICONS.warn = openBitmapFromCandidates(BATTERY_ICON_ROOTS, { "battery-warn.png" })
+    BATTERY_ICONS.low  = openBitmapFromCandidates(BATTERY_ICON_ROOTS, { "battery-low.png" })
+    BATTERY_ICONS.dead = openBitmapFromCandidates(BATTERY_ICON_ROOTS, { "battery-dead.png" })
+
+    if not BATTERY_ICONS.ok then
+      BATTERY_ICONS.ok = ICON_TX_BATTERY
+    end
+
+    _batteryIconsLoaded = true
+  end
 
   local iconFolder = (theme and theme.iconFolder) or "dark"
-
-  if _iconsLoaded then
-    if _loadedIconFolder ~= iconFolder then
-      _loadedIconFolder = iconFolder
-      local themedRoots = buildThemedRoots(iconFolder)
-      ICON_LINK_ON = openBitmapFromCandidates(themedRoots, { "link.png" })
-      ICON_LINK_OFF = openBitmapFromCandidates(themedRoots, { "link_off.png" })
-    end
-    return
+  local linkIcons = _linkIconSets[iconFolder]
+  if not linkIcons then
+    linkIcons = loadLinkIconSet(iconFolder)
+    _linkIconSets[iconFolder] = linkIcons
   end
-
-  ICON_TX_BATTERY = openBitmapFromCandidates(ICON_ROOTS, {
-    "tx_battery.png",
-    "battery.png",
-  })
-
-  BATTERY_ICONS.full = openBitmapFromCandidates(BATTERY_ICON_ROOTS, { "battery-full.png" })
-  BATTERY_ICONS.ok   = openBitmapFromCandidates(BATTERY_ICON_ROOTS, { "battery-ok.png" })
-  BATTERY_ICONS.warn = openBitmapFromCandidates(BATTERY_ICON_ROOTS, { "battery-warn.png" })
-  BATTERY_ICONS.low  = openBitmapFromCandidates(BATTERY_ICON_ROOTS, { "battery-low.png" })
-  BATTERY_ICONS.dead = openBitmapFromCandidates(BATTERY_ICON_ROOTS, { "battery-dead.png" })
-
-  if not BATTERY_ICONS.ok then
-    BATTERY_ICONS.ok = ICON_TX_BATTERY
-  end
-
-  _loadedIconFolder = iconFolder
-
-  local themedRoots = buildThemedRoots(iconFolder)
-  ICON_LINK_ON = openBitmapFromCandidates(themedRoots, { "link.png" })
-  ICON_LINK_OFF = openBitmapFromCandidates(themedRoots, { "link_off.png" })
-
-  _iconsLoaded = true
+  return linkIcons
 end
 
 local toNumber = (primitivesModule and primitivesModule.toNumber) or function() return nil end
@@ -318,9 +327,9 @@ local function readDateText()
   return string.format("%d %s", day, monthText)
 end
 
-local function drawLinkIcon(rect, connected)
+local function drawLinkIcon(rect, connected, linkIcons)
   local isConnected = (connected == true)
-  local icon = isConnected and ICON_LINK_ON or ICON_LINK_OFF
+  local icon = linkIcons and (isConnected and linkIcons.ICON_LINK_ON or linkIcons.ICON_LINK_OFF)
   local text = isConnected and "LINK" or "NO"
   local textColor = _TEXT_COLOR
   local iconX = rect.x
@@ -479,7 +488,7 @@ function M.draw(bounds, telemetry, state, theme)
   local textColor = (theme and theme.textColor) or _WHITE
   _TEXT_COLOR = textColor
   _TEXT_SHADOW_COLOR = (theme and theme.isLight) and _LIGHT_TEXT_SHADOW or _BLACK
-  ensureIconsLoaded(theme)
+  local linkIcons = ensureIconsLoaded(theme)
 
   local x = bounds.x
   local y = bounds.y
@@ -533,7 +542,7 @@ function M.draw(bounds, telemetry, state, theme)
   drawTxBattery({ x = zone2.x + 2 + TOPBAR_STATUS_X_OFFSET, y = y, h = h }, txV, txState)
 
   local connected = telemetry and telemetry.connected
-  drawLinkIcon({ x = zone3.x + TOPBAR_STATUS_X_OFFSET, y = y, w = zone3.w, h = h }, connected)
+  drawLinkIcon({ x = zone3.x + TOPBAR_STATUS_X_OFFSET, y = y, w = zone3.w, h = h }, connected, linkIcons)
 
   local timeY = y + 4
   local dateY = timeY + 13

@@ -40,21 +40,18 @@ local TEXT_H = 8
 local TIMER_TEXT_SLOT_W = 34
 local TIMER_TEXT_Y_OFFSET = -4
 
-local ICON_CLOCK = nil
-local _iconsLoaded = false
-local _loadedIconFolder = nil
 local _TEXT_COLOR = _WHITE
 
 local openBitmapFromCandidates = (primitivesModule and primitivesModule.openBitmapFromCandidates)
   or function() return nil end
 
-local function ensureIconsLoaded(theme)
-  local iconFolder = (theme and theme.iconFolder) or "dark"
-  if _iconsLoaded and _loadedIconFolder == iconFolder then
-    return
-  end
-  _loadedIconFolder = iconFolder
+-- Icon sets are cached by icon folder ("dark"/"light"), not loaded into
+-- a shared module-level ICON_CLOCK local -- see render/context.lua's
+-- identical comment for why (two instances on different themes used to
+-- fight over one variable, reopening the bitmap every refresh()).
+local _iconSets = {}
 
+local function loadIconSet(iconFolder)
   local roots = {
     "/WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
     "/SCRIPTS/WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
@@ -66,8 +63,19 @@ local function ensureIconsLoaded(theme)
     "SCRIPTS/WIDGETS/FPVDASH/icons/",
   }
 
-  ICON_CLOCK = openBitmapFromCandidates(roots, { "clock.png" })
-  _iconsLoaded = true
+  return {
+    ICON_CLOCK = openBitmapFromCandidates(roots, { "clock.png" }),
+  }
+end
+
+local function ensureIconsLoaded(theme)
+  local iconFolder = (theme and theme.iconFolder) or "dark"
+  local set = _iconSets[iconFolder]
+  if not set then
+    set = loadIconSet(iconFolder)
+    _iconSets[iconFolder] = set
+  end
+  return set
 end
 
 -- Shadow color here is a simple txtColor-based heuristic -- deliberately
@@ -142,7 +150,7 @@ function M.draw(rect, telemetry, state, theme)
 
   local textColor = (theme and theme.textColor) or _WHITE
   _TEXT_COLOR = textColor
-  ensureIconsLoaded(theme)
+  local icons = ensureIconsLoaded(theme)
 
   local colW = math.floor(rect.w / 3)
   local col0 = rect.x
@@ -153,9 +161,9 @@ function M.draw(rect, telemetry, state, theme)
   local timer2Text = formatTimer(readTimer("timer2"))
   local timer3Text = formatTimer(readTimer("timer3"))
 
-  drawTimerMetric(col0, rect.y, colW, rect.h, ICON_CLOCK, timer1Text)
-  drawTimerMetric(col1, rect.y, colW, rect.h, ICON_CLOCK, timer2Text)
-  drawTimerMetric(col2, rect.y, rect.w - (colW * 2), rect.h, ICON_CLOCK, timer3Text)
+  drawTimerMetric(col0, rect.y, colW, rect.h, icons.ICON_CLOCK, timer1Text)
+  drawTimerMetric(col1, rect.y, colW, rect.h, icons.ICON_CLOCK, timer2Text)
+  drawTimerMetric(col2, rect.y, rect.w - (colW * 2), rect.h, icons.ICON_CLOCK, timer3Text)
 end
 
 function M.drawSkeleton(rect)

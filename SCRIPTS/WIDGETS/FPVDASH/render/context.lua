@@ -48,30 +48,22 @@ local TEXT_SLOT_W = 34
 local CONTEXT_X_OFFSET = -4
 local _TEXT_COLOR = _WHITE
 
-local _iconsLoaded = false
-local _loadedIconFolder = nil
-local ICON_CURRENT = nil
-local ICON_RADIO = nil
-local ICON_RFMD = nil
-local ICON_SIGNAL = nil
-local ICON_NOISE = nil
-local ICON_BATTERY = nil
-local ICON_SAT = nil
-local ICON_ANT = nil
-local ICON_DRONE = nil
-
 local toNumber = (primitivesModule and primitivesModule.toNumber) or function() return nil end
 
 local openBitmapFromCandidates = (primitivesModule and primitivesModule.openBitmapFromCandidates)
   or function() return nil end
 
-local function ensureIconsLoaded(theme)
-  local iconFolder = (theme and theme.iconFolder) or "dark"
-  if _iconsLoaded and _loadedIconFolder == iconFolder then
-    return
-  end
-  _loadedIconFolder = iconFolder
+-- Icon sets are cached by icon folder ("dark"/"light"), not loaded into
+-- shared module-level ICON_* locals. Two widget instances using
+-- different themes (or one instance whose theme option changes) used to
+-- fight over a single set of module-level variables, reopening every
+-- bitmap on every refresh() whenever the two instances' folders
+-- disagreed. The underlying files are static, theme-keyed assets, so
+-- every instance sharing a theme can safely share the same loaded
+-- bitmaps -- only the *load* needs to happen once per folder.
+local _iconSets = {}
 
+local function loadIconSet(iconFolder)
   local roots = {
     "/WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
     "/SCRIPTS/WIDGETS/FPVDASH/icons/" .. iconFolder .. "/",
@@ -83,17 +75,28 @@ local function ensureIconsLoaded(theme)
     "SCRIPTS/WIDGETS/FPVDASH/icons/",
   }
 
-  ICON_CURRENT = openBitmapFromCandidates(roots, { "current.png" })
-  ICON_RADIO = openBitmapFromCandidates(roots, { "radio.png" })
-  ICON_RFMD = openBitmapFromCandidates(roots, { "rfmd.png" })
-  ICON_SIGNAL = openBitmapFromCandidates(roots, { "signal.png" })
-  ICON_NOISE = openBitmapFromCandidates(roots, { "noise.png" })
-  ICON_BATTERY = openBitmapFromCandidates(roots, { "battery.png" })
-  ICON_SAT = openBitmapFromCandidates(roots, { "sat.png", "sats.png" })
-  ICON_ANT = openBitmapFromCandidates(roots, { "antenna.png" })
-  ICON_DRONE = openBitmapFromCandidates(roots, { "drone.png" })
+  return {
+    ICON_CURRENT = openBitmapFromCandidates(roots, { "current.png" }),
+    ICON_RADIO = openBitmapFromCandidates(roots, { "radio.png" }),
+    ICON_RFMD = openBitmapFromCandidates(roots, { "rfmd.png" }),
+    ICON_SIGNAL = openBitmapFromCandidates(roots, { "signal.png" }),
+    ICON_NOISE = openBitmapFromCandidates(roots, { "noise.png" }),
+    ICON_BATTERY = openBitmapFromCandidates(roots, { "battery.png" }),
+    ICON_SAT = openBitmapFromCandidates(roots, { "sat.png", "sats.png" }),
+    ICON_ANT = openBitmapFromCandidates(roots, { "antenna.png" }),
+    ICON_DRONE = openBitmapFromCandidates(roots, { "drone.png" }),
+  }
+end
 
-  _iconsLoaded = true
+-- Returns this theme's icon set, loading and caching it on first request.
+local function ensureIconsLoaded(theme)
+  local iconFolder = (theme and theme.iconFolder) or "dark"
+  local set = _iconSets[iconFolder]
+  if not set then
+    set = loadIconSet(iconFolder)
+    _iconSets[iconFolder] = set
+  end
+  return set
 end
 
 -- Shadow color here is a simple txtColor-based heuristic -- deliberately
@@ -288,7 +291,7 @@ function M.draw(rect, telemetry, state, theme)
 
   local textColor = (theme and theme.textColor) or _WHITE
   _TEXT_COLOR = textColor
-  ensureIconsLoaded(theme)
+  local icons = ensureIconsLoaded(theme)
 
   local x = rect.x + CONTEXT_X_OFFSET
   local y = rect.y
@@ -361,15 +364,15 @@ function M.draw(rect, telemetry, state, theme)
   local c3x = x + (colW * 3)
   local c3w = w - (colW * 3)
 
-  drawIconMetric(c0x, row1Y, colW, rowH, ICON_CURRENT, curText)
-  drawIconMetric(c1x, row1Y, colW, rowH, ICON_RFMD, rateText)
-  drawIconMetric(c2x, row1Y, colW, rowH, ICON_RADIO, pwrText)
-  drawIconMetric(c3x, row1Y, c3w, rowH, ICON_SIGNAL, rssiText)
+  drawIconMetric(c0x, row1Y, colW, rowH, icons.ICON_CURRENT, curText)
+  drawIconMetric(c1x, row1Y, colW, rowH, icons.ICON_RFMD, rateText)
+  drawIconMetric(c2x, row1Y, colW, rowH, icons.ICON_RADIO, pwrText)
+  drawIconMetric(c3x, row1Y, c3w, rowH, icons.ICON_SIGNAL, rssiText)
 
-  drawIconMetric(c0x, row2Y, colW, row2H, ICON_SAT or ICON_BATTERY, satText, satColor)
-  drawIconMetric(c1x, row2Y, colW, row2H, ICON_DRONE, fmText)
-  drawIconMetric(c2x, row2Y, colW, row2H, ICON_NOISE or ICON_SIGNAL, snrText)
-  drawIconMetric(c3x, row2Y, c3w, row2H, ICON_BATTERY, capText)
+  drawIconMetric(c0x, row2Y, colW, row2H, icons.ICON_SAT or icons.ICON_BATTERY, satText, satColor)
+  drawIconMetric(c1x, row2Y, colW, row2H, icons.ICON_DRONE, fmText)
+  drawIconMetric(c2x, row2Y, colW, row2H, icons.ICON_NOISE or icons.ICON_SIGNAL, snrText)
+  drawIconMetric(c3x, row2Y, c3w, row2H, icons.ICON_BATTERY, capText)
 end
 
 function M.drawSkeleton(rect)
