@@ -209,6 +209,16 @@ function M.uninstall()
   M.lcdCalls = nil
   M.crsfPushed = nil
   M.advanceTime = nil
+
+  -- Widget code (main.lua's loadModule, and every render/*.lua's
+  -- loadSiblingModule) caches loaded sibling modules in this
+  -- well-namespaced global, scoped to one continuous runtime session
+  -- (one radio power-on, in production; one install()/uninstall() cycle,
+  -- here). Not clearing it here would leak module instances -- and the
+  -- loadScript call *counts* tests assert on -- across what are meant to
+  -- be independent test cases (see tests/paths.lua's loadWidgetModule
+  -- comment on the same principle for module-level state).
+  _G.__FPVDASH_MODULE_CACHE__ = nil
 end
 
 -- Installs the fixture, runs fn(), and always uninstalls afterward, even if

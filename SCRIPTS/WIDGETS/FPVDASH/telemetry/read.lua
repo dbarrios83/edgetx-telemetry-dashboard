@@ -21,12 +21,29 @@ local function loadSiblingModule(relativePath)
   if not loadScript then
     return nil
   end
+
+  -- Shared across every file with a copy of this loader: loadScript has
+  -- no built-in caching the way Lua's require() does, so a module
+  -- loaded from multiple call sites (e.g. render/primitives.lua,
+  -- independently loaded by all five renderers) would otherwise execute
+  -- -- and hold in memory -- one separate copy per caller instead of
+  -- one shared copy (found in external review, 2026-08-07).
+  _G.__FPVDASH_MODULE_CACHE__ = _G.__FPVDASH_MODULE_CACHE__ or {}
+  local cache = _G.__FPVDASH_MODULE_CACHE__
+  if cache[relativePath] ~= nil then
+    return cache[relativePath] or nil
+  end
+
   for i = 1, #WIDGET_ROOTS do
     local chunk = loadScript(WIDGET_ROOTS[i] .. relativePath)
     if chunk then
-      return chunk()
+      local result = chunk()
+      cache[relativePath] = result or false
+      return result
     end
   end
+
+  cache[relativePath] = false
   return nil
 end
 
