@@ -86,19 +86,24 @@ local STICK_VALUES_BOTTOM_OUTSIDE_GAP = -1
 local STICK_VALUES_TOP_NUDGE = 0
 local STICK_VALUES_BOTTOM_NUDGE = 0
 
--- RX battery block: icon + value/text centered together as one group
--- (render/primitives.lua's centerGroup) inside the Receiver Battery cell.
--- EdgeTX widget text has no runtime glyph-metrics API, so RX_BAT_TEXT_H is
--- a documented estimate of _MIDSIZE's rendered height rather than a
--- measured value. First-pass estimate (12) was visibly too short in
--- EdgeTX Companion -- text and icon did not share a visual center --
--- widened to 20 (Task 5 Companion pass, 2026-08-07); revisit if still off.
-local RX_BAT_TEXT_CHAR_W = 7
-local RX_BAT_TEXT_H = 20
+-- RX battery block: icon stacked above value/text, both centered as one
+-- vertical group (render/primitives.lua's centerGroupVertical) inside the
+-- Receiver Battery cell. Second Companion pass (2026-08-07): the prior
+-- horizontal icon+text layout at _MIDSIZE both mis-centered vertically
+-- (RX_BAT_TEXT_H's estimate was still off) and, at this cell's width
+-- (30% of the widget), ran the longer battery strings (e.g. "3.68V
+-- (6S)") off the right edge of the screen. Stacking vertically and
+-- dropping to _SMLSIZE fixes both: the group is far narrower, and each
+-- part's own height drives centering, with no horizontal overflow risk
+-- left to guess at. EdgeTX widget text has no runtime glyph-metrics API,
+-- so RX_BAT_TEXT_CHAR_W/RX_BAT_TEXT_H remain documented estimates rather
+-- than measured values.
+local RX_BAT_TEXT_CHAR_W = 5
+local RX_BAT_TEXT_H = 8
 local RX_BAT_ICON_TEXT_GAP = 4
 
--- Link-quality block keeps exact vertical alignment with RX battery block
--- (same text metrics), centered the same way inside its own cell.
+-- Link-quality block uses the same stacked layout and text metrics as
+-- the RX battery block, centered the same way inside its own cell.
 local LQ_TEXT_CHAR_W = RX_BAT_TEXT_CHAR_W
 local LQ_TEXT_H = RX_BAT_TEXT_H
 local LQ_ICON_TEXT_GAP = RX_BAT_ICON_TEXT_GAP
@@ -161,6 +166,8 @@ local openBitmapFromCandidates = (primitivesModule and primitivesModule.openBitm
 local gridCells = (primitivesModule and primitivesModule.gridCells)
   or function() return {} end
 local centerGroup = (primitivesModule and primitivesModule.centerGroup)
+  or function() return {} end
+local centerGroupVertical = (primitivesModule and primitivesModule.centerGroupVertical)
   or function() return {} end
 
 local function ensureIconsLoaded(theme)
@@ -394,23 +401,23 @@ local function drawLinkQualitySection(rect, telemetry, state)
 
   local textW = #text * LQ_TEXT_CHAR_W
 
-  -- Icon + gap + text move as one centered group, so a digit-count change
-  -- (100% -> 99%) shifts the whole group's center by half a character
-  -- rather than jittering the icon against a fixed anchor.
+  -- Icon stacked above text, both centered as one vertical group, so a
+  -- digit-count change (100% -> 99%) only re-centers that one row
+  -- horizontally -- it can never push the group's width past the cell.
   local parts
   if icon then
-    parts = { { w = LQ_ICON_W, h = LQ_ICON_H }, { w = LQ_ICON_TEXT_GAP }, { w = textW, h = LQ_TEXT_H } }
+    parts = { { w = LQ_ICON_W, h = LQ_ICON_H }, { w = 0, h = LQ_ICON_TEXT_GAP }, { w = textW, h = LQ_TEXT_H } }
   else
     parts = { { w = textW, h = LQ_TEXT_H } }
   end
-  local placed = centerGroup(rect, parts)
+  local placed = centerGroupVertical(rect, parts)
 
   if icon then
     -- Preserve original icon PNG colors.
     lcd.drawBitmap(icon, placed[1].x, placed[1].y)
-    drawShadowText(placed[3].x, placed[3].y, text, _MIDSIZE, color)
+    drawShadowText(placed[3].x, placed[3].y, text, _SMLSIZE, color)
   else
-    drawShadowText(placed[1].x, placed[1].y, text, _MIDSIZE, color)
+    drawShadowText(placed[1].x, placed[1].y, text, _SMLSIZE, color)
   end
 end
 
@@ -426,20 +433,24 @@ local function drawRxBatterySection(rect, telemetry, state)
   local icon = BATTERY_ICONS[batteryIconKey(telemetry, batteryState)]
   local textW = #text * RX_BAT_TEXT_CHAR_W
 
+  -- Icon stacked above text, both centered as one vertical group -- see
+  -- RX_BAT_TEXT_H's comment above for why (a horizontal layout ran the
+  -- longer battery strings, e.g. "3.68V (6S)", off the screen at this
+  -- cell's width).
   local parts
   if icon then
-    parts = { { w = BATTERY_ICON_W, h = BATTERY_ICON_H }, { w = RX_BAT_ICON_TEXT_GAP }, { w = textW, h = RX_BAT_TEXT_H } }
+    parts = { { w = BATTERY_ICON_W, h = BATTERY_ICON_H }, { w = 0, h = RX_BAT_ICON_TEXT_GAP }, { w = textW, h = RX_BAT_TEXT_H } }
   else
     parts = { { w = textW, h = RX_BAT_TEXT_H } }
   end
-  local placed = centerGroup(rect, parts)
+  local placed = centerGroupVertical(rect, parts)
 
   if icon then
     -- Keep native PNG colors; no CUSTOM_COLOR tint for battery icons.
     lcd.drawBitmap(icon, placed[1].x, placed[1].y)
-    drawShadowText(placed[3].x, placed[3].y, text, _MIDSIZE, color)
+    drawShadowText(placed[3].x, placed[3].y, text, _SMLSIZE, color)
   else
-    drawShadowText(placed[1].x, placed[1].y, text, _MIDSIZE, color)
+    drawShadowText(placed[1].x, placed[1].y, text, _SMLSIZE, color)
   end
 end
 
