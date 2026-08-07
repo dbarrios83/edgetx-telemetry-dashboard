@@ -55,9 +55,30 @@ local _BLACK    = 0x0000
 local _BOLD     = (type(BOLD)     == "number") and BOLD     or 0
 local LINK_ICON_W = 24
 local LINK_ICON_H = 24
+
+-- Top-bar grid: EdgeTX Logo / Model / TX Battery / Receiver Connection /
+-- Date-Time, in that order (Grid-aligned top bar and sticks, Task 3).
+-- Cell 1 (the logo) is reserved space only -- this renderer never draws
+-- into it, since the EdgeTX telemetry-app layout supplies and positions
+-- that asset itself.
+local GRID_WEIGHTS = { 10, 36, 20, 16, 18 }
+
+-- EdgeTX widget text has no runtime glyph-metrics API, so these are
+-- documented per-character/line-height estimates used only to size
+-- content for the group-centering math below, not measured values. Task 5's
+-- EdgeTX Companion pass verifies/adjusts them if needed.
+local MODEL_TEXT_CHAR_W = 6
+local MODEL_TEXT_H = 35
+local MODEL_TEXT_PADDING = 8
+local TX_TEXT_CHAR_W = 8
 local TX_TEXT_H = 12
-local TX_TEXT_NUDGE_Y = -8
-local TOPBAR_STATUS_X_OFFSET = 50
+local TX_BATTERY_ICON_W = 30
+local TX_BATTERY_ICON_H = 32
+local TX_ICON_TEXT_GAP = 4
+local DATE_TIME_TEXT_CHAR_W = 4
+local DATE_TIME_TEXT_H = 8
+local DATE_TIME_ROW_GAP = 5
+
 local _TEXT_COLOR = _WHITE
 local _TEXT_SHADOW_COLOR = _BLACK
 local _LIGHT_TEXT_SHADOW = _WHITE
@@ -128,6 +149,13 @@ local TX_VOLTAGE_SOURCE_NAMES = {
 
 local openBitmapFromCandidates = (primitivesModule and primitivesModule.openBitmapFromCandidates)
   or function() return nil end
+
+local gridCells = (primitivesModule and primitivesModule.gridCells)
+  or function() return {} end
+local centerGroup = (primitivesModule and primitivesModule.centerGroup)
+  or function() return {} end
+local centerGroupVertical = (primitivesModule and primitivesModule.centerGroupVertical)
+  or function() return {} end
 
 -- Icons are loaded lazily on the first draw call so that the Bitmap API is
 -- guaranteed to be available (EdgeTX only exposes it inside widget callbacks).
@@ -337,41 +365,20 @@ local function drawLinkIcon(rect, connected, linkIcons)
   local icon = linkIcons and (isConnected and linkIcons.ICON_LINK_ON or linkIcons.ICON_LINK_OFF)
   local text = isConnected and "LINK" or "NO"
   local textColor = _TEXT_COLOR
-  local iconX = rect.x
-  local iconY = rect.y
-
-  if type(rect.w) == "number" then
-    iconX = rect.x + math.floor((rect.w - LINK_ICON_W) / 2)
-  end
-  if type(rect.h) == "number" then
-    iconY = rect.y + math.floor((rect.h - LINK_ICON_H) / 2)
-  end
 
   if icon then
-    if iconX < rect.x then
-      iconX = rect.x
-    end
-    if iconY < rect.y then
-      iconY = rect.y
-    end
+    local placed = centerGroup(rect, { { w = LINK_ICON_W, h = LINK_ICON_H } })
     -- Link status is determined only by icon choice; use one fixed draw color
     -- to avoid inheriting previous CUSTOM_COLOR state from text rendering.
     if lcd and type(lcd.setColor) == "function" and type(CUSTOM_COLOR) == "number" then
       lcd.setColor(CUSTOM_COLOR, _BLACK)
     end
-    lcd.drawBitmap(icon, iconX, iconY)
+    lcd.drawBitmap(icon, placed[1].x, placed[1].y)
     return
   end
 
-  local textX = rect.x + math.floor((rect.w - (#text * 4)) / 2)
-  if textX < rect.x then
-    textX = rect.x
-  end
-  local textY = rect.y + 1
-  if type(rect.h) == "number" then
-    textY = rect.y + math.floor((rect.h - 8) / 2)
-  end
-  drawShadowText(textX, textY, text, SMLSIZE, textColor)
+  local placed = centerGroup(rect, { { w = #text * 4, h = 8 } })
+  drawShadowText(placed[1].x, placed[1].y, text, SMLSIZE, textColor)
 end
 
 local function resolveTxBatteryIcon(state)
@@ -446,43 +453,46 @@ end
 local function drawTxBattery(rect, txV, txState)
   local txText = txV and string.format("%.1fV", txV) or "--.-V"
   local txColor = txV and _TEXT_COLOR or _THEME_WARNING
-  local textX = rect.x
-  local textY = rect.y + 1
+  local textW = #txText * TX_TEXT_CHAR_W
 
-  if type(rect.h) == "number" then
-    textY = rect.y + math.floor((rect.h - TX_TEXT_H) / 2) + TX_TEXT_NUDGE_Y
-  end
-
-  local drewIcon = false
-
-  -- Try PNG state icon.
+  -- Icon + value move as one centered group: reserve the icon column
+  -- whenever lcd is available, since either the PNG icon or the vector
+  -- glyph fallback (drawBatteryGlyph) will draw into it.
   local icon = resolveTxBatteryIcon(txState)
+  local hasIconArea = (icon ~= nil) or (lcd ~= nil)
+
+  local parts
+  if hasIconArea then
+    parts = { { w = TX_BATTERY_ICON_W, h = TX_BATTERY_ICON_H }, { w = TX_ICON_TEXT_GAP }, { w = textW, h = TX_TEXT_H } }
+  else
+    parts = { { w = textW, h = TX_TEXT_H } }
+  end
+  local placed = centerGroup(rect, parts)
+
   if icon then
-    local iconH = 32
-    local iconY = rect.y
-    if type(rect.h) == "number" then
-      iconY = rect.y + math.floor((rect.h - iconH) / 2)
-    end
-    if iconY < rect.y then iconY = rect.y end
-    lcd.drawBitmap(icon, rect.x, iconY)
-    drewIcon = true
-  end
-
-  -- Vector fallback when no PNG is available.
-  if not drewIcon then
+    lcd.drawBitmap(icon, placed[1].x, placed[1].y)
+  elseif hasIconArea then
     local glyphH = 9
-    local glyphY = rect.y
-    if type(rect.h) == "number" then
-      glyphY = rect.y + math.floor((rect.h - glyphH) / 2)
-    end
-    drewIcon = drawBatteryGlyph(rect.x + 1, glyphY, txState)
+    local glyphY = placed[1].y + math.floor((TX_BATTERY_ICON_H - glyphH) / 2)
+    drawBatteryGlyph(placed[1].x + 1, glyphY, txState)
   end
 
-  if drewIcon then
-    textX = rect.x + 30
-  end
+  local textPart = hasIconArea and placed[3] or placed[1]
+  drawShadowText(textPart.x, textPart.y, txText, MIDSIZE, txColor)
+end
 
-  drawShadowText(textX, textY, txText, MIDSIZE, txColor)
+local function drawDateTime(rect, timeText, dateText)
+  local timeW = #timeText * DATE_TIME_TEXT_CHAR_W
+  local dateW = #dateText * DATE_TIME_TEXT_CHAR_W
+
+  local placed = centerGroupVertical(rect, {
+    { w = timeW, h = DATE_TIME_TEXT_H },
+    { w = 0, h = DATE_TIME_ROW_GAP },
+    { w = dateW, h = DATE_TIME_TEXT_H },
+  })
+
+  drawShadowText(placed[1].x, placed[1].y, timeText, SMLSIZE, _TEXT_COLOR)
+  drawShadowText(placed[3].x, placed[3].y, dateText, SMLSIZE, _TEXT_COLOR)
 end
 
 function M.draw(bounds, telemetry, state, theme)
@@ -495,65 +505,28 @@ function M.draw(bounds, telemetry, state, theme)
   _TEXT_SHADOW_COLOR = (theme and theme.isLight) and _LIGHT_TEXT_SHADOW or _BLACK
   local linkIcons = ensureIconsLoaded(theme)
 
-  local x = bounds.x
-  local y = bounds.y
-  local w = bounds.w
-  local h = bounds.h
+  local cells = gridCells(bounds.x, bounds.y, bounds.w, bounds.h, GRID_WEIGHTS)
+  local logoCell, modelCell, txBatCell, connCell, dateTimeCell = cells[1], cells[2], cells[3], cells[4], cells[5]
 
-  local logoReserveW = 42
-  local contentGap = 4
-  local contentX = x + logoReserveW + contentGap
-  local contentW = w - logoReserveW - contentGap
-  if contentW < 80 then
-    contentX = x + 2
-    contentW = w - 4
+  if not logoCell or not modelCell or not txBatCell or not connCell or not dateTimeCell then
+    return
   end
 
-  local zone1W = math.floor(contentW * 0.45)
-  local zone2W = math.floor(contentW * 0.20)
-  local zone3W = math.floor(contentW * 0.10)
-  local zone4W = contentW - zone1W - zone2W - zone3W
+  -- logoCell is intentionally never drawn into: the EdgeTX telemetry-app
+  -- layout supplies and positions that asset itself.
 
-  local zone1 = { x = contentX, y = y, w = zone1W, h = h }
-  local zone2 = { x = contentX + zone1W, y = y, w = zone2W, h = h }
-  local zone3 = { x = zone2.x + zone2W, y = y, w = zone3W, h = h }
-  local zone4 = { x = zone3.x + zone3W, y = y, w = zone4W, h = h }
-
-  local timeText = readClockText()
-  local dateText = readDateText()
-
-  local smlCharW = 4
-  local timeW = #timeText * smlCharW
-  local dateW = #dateText * smlCharW
-
-  local rightPad = 20
-  local stackRight = zone4.x + zone4.w - rightPad
-
-  local timeX = stackRight - timeW
-  local dateX = stackRight - dateW
-
-  local modelText = truncateText(readModelName(), zone1.w - 8, 6)
-
-  -- Vertically center model name in full top bar height.
-  local modelTextH = 35
-  local modelY = y + math.floor((h - modelTextH) / 2)
-  if modelY < y then
-    modelY = y
-  end
-
-  drawShadowText(zone1.x + 10, modelY, modelText, MIDSIZE, _TEXT_COLOR, _BOLD)
+  local modelText = truncateText(readModelName(), modelCell.w - MODEL_TEXT_PADDING, MODEL_TEXT_CHAR_W)
+  local modelTextW = #modelText * MODEL_TEXT_CHAR_W
+  local modelPlaced = centerGroup(modelCell, { { w = modelTextW, h = MODEL_TEXT_H } })
+  drawShadowText(modelPlaced[1].x, modelPlaced[1].y, modelText, MIDSIZE, _TEXT_COLOR, _BOLD)
 
   local txV, txState = readTxBatteryInfo()
-  drawTxBattery({ x = zone2.x + 2 + TOPBAR_STATUS_X_OFFSET, y = y, h = h }, txV, txState)
+  drawTxBattery(txBatCell, txV, txState)
 
   local connected = telemetry and telemetry.connected
-  drawLinkIcon({ x = zone3.x + TOPBAR_STATUS_X_OFFSET, y = y, w = zone3.w, h = h }, connected, linkIcons)
+  drawLinkIcon(connCell, connected, linkIcons)
 
-  local timeY = y + 4
-  local dateY = timeY + 13
-
-  drawShadowText(timeX, timeY, timeText, SMLSIZE, _TEXT_COLOR)
-  drawShadowText(dateX, dateY, dateText, SMLSIZE, _TEXT_COLOR)
+  drawDateTime(dateTimeCell, readClockText(), readDateText())
 end
 
 function M.drawSkeleton(bounds)
