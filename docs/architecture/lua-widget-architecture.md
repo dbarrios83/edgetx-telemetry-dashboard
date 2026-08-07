@@ -295,12 +295,15 @@ treated differently:
   state between calls. The `render/*.lua` modules are not fully
   stateless, and exactly how each one caches its icons differs:
   - `render/context.lua` and `render/timers.lua` each keep a single
-    icon-set cache keyed by theme folder (`dark`/`light`) -- every icon
-    they load lives under a theme-specific folder.
+    icon-set cache keyed by theme folder (`dark`/`light`) -- lookups try
+    the theme-specific folder first, falling back to a flat `icons/`
+    path for a name not present there, but the cache itself is still one
+    entry per theme, not shared across themes.
   - `render/topbar.lua` keeps *two* caches: a theme-keyed cache (like
-    context.lua/timers.lua) for its link icons, plus a separate
-    one-time, theme-independent load for its battery icons, which live
-    under `icons/battery/` rather than a theme folder.
+    context.lua/timers.lua, same theme-folder-first-then-flat-fallback
+    lookup) for its link icons, plus a separate one-time,
+    theme-independent load for its battery icons, which live under
+    `icons/battery/` rather than a theme folder.
   - `render/sticks.lua`'s icons (battery and connection status) are
     entirely theme-independent, so it has no theme-keyed cache at all --
     just a single one-time load, the same shape as topbar.lua's battery

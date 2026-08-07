@@ -91,14 +91,14 @@ return function(t, mock, paths)
 
   t.describe("release packaging: icon references resolve to a real file", function()
     -- Which root(s) a given openBitmapFromCandidates() call actually
-    -- searches (icons/<theme>/, icons/battery/, icons/link/, flat
-    -- icons/, or some combination as a fallback chain) is decided by
-    -- each render/*.lua file's own root-building logic, which differs
+    -- searches (icons/<theme>/ then flat icons/ as a fallback,
+    -- icons/battery/, icons/link/, or some other combination) is decided
+    -- by each render/*.lua file's own root-building logic, which differs
     -- per renderer and even per call site within one renderer (compare
-    -- render/context.lua's loadIconSet(), which has no flat fallback, to
-    -- render/topbar.lua's buildThemedRoots(), which does; or
-    -- render/sticks.lua's battery/link icons, which aren't theme-scoped
-    -- at all). Reconstructing that scoping from source text requires
+    -- render/context.lua's/render/topbar.lua's theme-folder-then-flat-
+    -- fallback roots to render/sticks.lua's battery/link icons, which
+    -- aren't theme-scoped at all). Reconstructing that scoping from
+    -- source text requires
     -- either parsing every root-list definition or hard-coding each call
     -- site's folder by hand -- both drift-prone. So instead of guessing,
     -- this drives each renderer's real draw() against a Bitmap.open that
