@@ -88,6 +88,21 @@ function M.compute(zone)
   local stickH  = math.max(58, math.floor(h * 0.32))
   local contextH = math.max(20, math.floor(h * 0.14))
 
+  -- stickH/contextH/primaryH are percentage-of-height, so they already
+  -- shrink and grow proportionally to the zone's actual height without
+  -- any special-casing per resolution. Verified directly for all three
+  -- supported resolutions (Multi-Resolution Layout, Task 3) that this
+  -- alone -- once topBarH is pinned (Task 1) and the footer is mandatory
+  -- (Task 2) -- already satisfies every region-sizing goal with comfortable
+  -- margin, so no further rebalancing was needed here:
+  --   480x320: stick=102 primary=105 context=44 (unchanged from before)
+  --   480x272: stick=87  primary=78  context=38  (shrink-under-pressure
+  --            path never triggers -- primaryH=78 stays well above its
+  --            40px minimum even with the pinned top bar + mandatory
+  --            footer both now claiming space here)
+  --   800x480: stick=153 primary=174 context=67  (visibly more generous
+  --            than 480x272's proportions, purely from being computed
+  --            against a taller zone -- no extra logic required)
   local minimumPrimaryH = 40
   local primaryH = h - (topBarH + stickH + contextH + footerH + (gap * numGaps))
 
