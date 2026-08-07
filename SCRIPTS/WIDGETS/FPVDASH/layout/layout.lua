@@ -33,6 +33,35 @@ end
 local FOOTER_THRESHOLD = 290
 local FOOTER_H = 16
 
+-- The strip in the top-left corner (EdgeTX logo etc.) is not drawn by this
+-- widget at all -- it's EdgeTX's own system TopBar, rendered above/around
+-- whatever the App Mode widget draws (see render/topbar.lua's reserved
+-- logo cell). Its real height, confirmed from EdgeTX firmware source
+-- (Multi-Resolution Layout, Task 1):
+--   WidgetsContainer(parent, {0, 0, LCD_W, EdgeTxStyles::MENU_HEADER_HEIGHT}, ...)
+--     -- radio/src/gui/colorlcd/mainview/topbar.cpp
+--   static LAYOUT_VAL_SCALED(MENU_HEADER_HEIGHT, 45)
+--     -- radio/src/gui/colorlcd/libui/etx_lv_theme.h
+-- LAYOUT_SCALE only changes the value for two specific landscape widths;
+-- every other width (including both of this widget's 480-wide classes)
+-- is unscaled:
+--   LCD_W == 320  -> (x*8+5)/10
+--   LCD_W == 800  -> (x*11+4)/8
+--   otherwise     -> x
+-- Mirrored exactly here (against zone width, this widget's analog of
+-- LCD_W) rather than approximated, so the widget's own top bar can never
+-- visibly mismatch the real logo it sits beside.
+local MENU_HEADER_HEIGHT = 45
+
+local function menuHeaderHeight(zoneWidth)
+  if zoneWidth == 320 then
+    return math.floor((MENU_HEADER_HEIGHT * 8 + 5) / 10)
+  elseif zoneWidth == 800 then
+    return math.floor((MENU_HEADER_HEIGHT * 11 + 4) / 8)
+  end
+  return MENU_HEADER_HEIGHT
+end
+
 function M.compute(zone)
   if not zone then
     return nil
@@ -54,7 +83,10 @@ function M.compute(zone)
   local footerH    = showFooter and FOOTER_H or 0
   local numGaps    = showFooter and 4 or 3
 
-  local topBarH = math.max(36, math.floor(h * 0.14))
+  -- Pinned exactly to the real EdgeTX logo height for this zone width --
+  -- never approximated, and never shrunk under space pressure below (see
+  -- the shrink block: topBarH is deliberately absent from that pool).
+  local topBarH = menuHeaderHeight(w)
   local stickH  = math.max(58, math.floor(h * 0.32))
   local contextH = math.max(20, math.floor(h * 0.14))
 
@@ -65,8 +97,7 @@ function M.compute(zone)
     local deficit = minimumPrimaryH - primaryH
 
     contextH, deficit = shrink(contextH, 16, deficit)
-    stickH,   deficit = shrink(stickH,   44, deficit)
-    topBarH            = shrink(topBarH, 18, deficit)
+    stickH = shrink(stickH, 44, deficit)
 
     primaryH = h - (topBarH + stickH + contextH + footerH + (gap * numGaps))
   end
