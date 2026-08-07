@@ -357,12 +357,12 @@ local function refresh(widget, event, touchState)
       timersRenderer.draw(widget.layout.contextRow, widget.telemetry, widget.state, theme)
     end
 
-    if widget.layout.footerRow then
-      drawSectionWash(widget.layout.footerRow, theme)
+    -- footerRow is always present now (layout.lua no longer hides it
+    -- below a height threshold -- Multi-Resolution Layout, Task 2).
+    drawSectionWash(widget.layout.footerRow, theme)
 
-      if footerRenderer and footerRenderer.draw then
-        footerRenderer.draw(widget.layout.footerRow, widget.telemetry, widget.state, theme)
-      end
+    if footerRenderer and footerRenderer.draw then
+      footerRenderer.draw(widget.layout.footerRow, widget.telemetry, widget.state, theme)
     end
   end
 end

@@ -26,11 +26,12 @@ local function shrink(value, minimum, deficit)
   return value - take, deficit - take
 end
 
--- Height threshold that separates the two supported color-screen display classes:
---   480×320 (RadioMaster TX15 / TX15 Max / Jumper T15 / T15 Pro)  → h >= FOOTER_THRESHOLD
---   480×272 (RadioMaster TX16S / TX16S Mark II / Jumper T16 / T18) → h <  FOOTER_THRESHOLD
--- The footer row is shown on the taller class only.
-local FOOTER_THRESHOLD = 290
+-- The footer row is always shown, on every supported resolution (Multi-
+-- Resolution Layout, Task 2) -- it used to be hidden below a 290px
+-- height threshold, which excluded 480×272 (RadioMaster TX16S / TX16S
+-- Mark II / Jumper T16 / T18). All five regions must now be visible on
+-- every supported resolution, so the remaining regions shrink to make
+-- room for it instead (see the shrink block below).
 local FOOTER_H = 16
 
 -- The strip in the top-left corner (EdgeTX logo etc.) is not drawn by this
@@ -77,11 +78,8 @@ function M.compute(zone)
   end
 
   local gap = 2
-
-  -- Detect display class from zone height and decide whether to include footer.
-  local showFooter = (h >= FOOTER_THRESHOLD)
-  local footerH    = showFooter and FOOTER_H or 0
-  local numGaps    = showFooter and 4 or 3
+  local footerH = FOOTER_H
+  local numGaps = 4
 
   -- Pinned exactly to the real EdgeTX logo height for this zone width --
   -- never approximated, and never shrunk under space pressure below (see
@@ -115,7 +113,7 @@ function M.compute(zone)
     primaryGrid  = rect(x, primaryY, w, primaryH),
     contextRow   = rect(x, contextY, w, contextH),
     -- Footer is bottom-anchored so rounding never pushes it outside the zone.
-    footerRow    = showFooter and rect(x, y + h - FOOTER_H, w, FOOTER_H) or nil,
+    footerRow    = rect(x, y + h - FOOTER_H, w, FOOTER_H),
   }
 end
 

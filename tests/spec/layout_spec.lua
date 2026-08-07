@@ -4,11 +4,16 @@ return function(t, mock, paths)
   t.describe("layout/layout.lua", function()
     local layout = paths.loadWidgetModule("layout/layout.lua")
 
-    t.it("omits the footer row on 480x272 (TX16S/T16-class) zones", function()
+    -- All five regions, including the footer, are shown on every
+    -- supported resolution (Multi-Resolution Layout, Task 2) -- the
+    -- footer used to be hidden below a 290px height threshold, which
+    -- excluded this class.
+    t.it("shows a bottom-anchored footer row on 480x272 (TX16S/T16-class) zones too", function()
       local zone = paths.loadFixture("screen_480x272")
       local result = layout.compute(zone)
       t.assertNotNil(result)
-      t.assertNil(result.footerRow)
+      t.assertNotNil(result.footerRow)
+      t.assertEqual(result.footerRow.y + result.footerRow.h, zone.y + zone.h)
     end)
 
     t.it("shows a bottom-anchored footer row on 480x320 (TX15/T15-class) zones", function()
