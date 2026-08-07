@@ -76,11 +76,12 @@ local GRID_WEIGHTS = { 10, 36, 20, 16, 18 }
 local MODEL_TEXT_CHAR_W = 13
 local MODEL_TEXT_H = 35
 local MODEL_TEXT_PADDING = 12
+local TX_TEXT_CHAR_W = 5
 local TX_TEXT_H = 8
 local TX_BATTERY_ICON_W = 30
 local TX_BATTERY_ICON_H = 32
 local TX_ICON_TEXT_GAP = 4
-local TX_LEFT_PADDING = 4
+local TX_RIGHT_PADDING = 4
 -- DATE_TIME_TEXT_CHAR_W was 4 -- badly underestimated the real SMLSIZE
 -- width, and because this cell sits flush against the widget's right
 -- edge (no neighbor cell to visibly absorb the error, unlike the Model
@@ -92,6 +93,7 @@ local TX_LEFT_PADDING = 4
 local DATE_TIME_TEXT_CHAR_W = 7
 local DATE_TIME_TEXT_H = 8
 local DATE_TIME_RIGHT_PADDING = 4
+local DATE_TIME_SEPARATOR = "   "
 
 local _TEXT_COLOR = _WHITE
 local _TEXT_SHADOW_COLOR = _BLACK
@@ -464,12 +466,13 @@ local function drawBatteryGlyph(x, y, state)
   return false
 end
 
--- Icon + value anchor to the cell's left edge (not centered), each
--- vertically centered independently within the cell -- same left-align
--- treatment as the model name, per direct user instruction.
+-- Icon + value anchor to the cell's right edge as one group (not
+-- centered), each vertically centered independently within the cell --
+-- per direct user instruction (2026-08-07, fifth Companion pass).
 local function drawTxBattery(rect, txV, txState)
   local txText = txV and string.format("%.1fV", txV) or "--.-V"
   local txColor = txV and _TEXT_COLOR or _THEME_WARNING
+  local textW = #txText * TX_TEXT_CHAR_W
 
   local icon = resolveTxBatteryIcon(txState)
   -- Reserve the icon column whenever lcd is available, since either the
@@ -477,18 +480,27 @@ local function drawTxBattery(rect, txV, txState)
   -- into it.
   local hasIconArea = (icon ~= nil) or (lcd ~= nil)
 
-  local iconX = rect.x + TX_LEFT_PADDING
-  local textX = iconX
+  local totalW = textW
+  if hasIconArea then
+    totalW = TX_BATTERY_ICON_W + TX_ICON_TEXT_GAP + textW
+  end
+
+  local groupX = rect.x + rect.w - totalW - TX_RIGHT_PADDING
+  if groupX < rect.x then
+    groupX = rect.x
+  end
+
+  local textX = groupX
   if hasIconArea then
     local iconY = centerStart(rect.y, rect.h, TX_BATTERY_ICON_H)
     if icon then
-      lcd.drawBitmap(icon, iconX, iconY)
+      lcd.drawBitmap(icon, groupX, iconY)
     else
       local glyphH = 9
       local glyphY = iconY + math.floor((TX_BATTERY_ICON_H - glyphH) / 2)
-      drawBatteryGlyph(iconX + 1, glyphY, txState)
+      drawBatteryGlyph(groupX + 1, glyphY, txState)
     end
-    textX = iconX + TX_BATTERY_ICON_W + TX_ICON_TEXT_GAP
+    textX = groupX + TX_BATTERY_ICON_W + TX_ICON_TEXT_GAP
   end
 
   local textY = centerStart(rect.y, rect.h, TX_TEXT_H)
@@ -500,7 +512,7 @@ end
 -- layout, but computed from the cell's own bounds instead of a fixed
 -- rightPad hack.
 local function drawDateTime(rect, timeText, dateText)
-  local text = dateText .. " " .. timeText
+  local text = dateText .. DATE_TIME_SEPARATOR .. timeText
   local textW = #text * DATE_TIME_TEXT_CHAR_W
 
   local textX = rect.x + rect.w - textW - DATE_TIME_RIGHT_PADDING
