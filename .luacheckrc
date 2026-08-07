@@ -55,10 +55,14 @@ files["tests/mock_edgetx.lua"] = {
   globals = read_globals,
 }
 
+-- Both replace the mock's Bitmap.open with their own implementation
+-- (a call-counting spy in icon_cache_spec.lua; a real-disk-backed check
+-- in release_spec.lua), which needs write access to the Bitmap global
+-- mock_edgetx.lua already installed -- everywhere else Bitmap stays
+-- read-only.
 files["tests/spec/icon_cache_spec.lua"] = {
-  -- Wraps the mock's Bitmap.open with a call-counting spy (see
-  -- countBitmapOpens()), which needs write access to the Bitmap global
-  -- mock_edgetx.lua already installed -- everywhere else Bitmap stays
-  -- read-only.
+  globals = { "Bitmap" },
+}
+files["tests/spec/release_spec.lua"] = {
   globals = { "Bitmap" },
 }

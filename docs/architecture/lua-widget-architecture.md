@@ -293,20 +293,33 @@ treated differently:
 - **Shared code, safe to keep at module scope:** `layout/layout.lua` is
   pure/stateless -- it takes its inputs as arguments and holds no mutable
   state between calls. The `render/*.lua` modules are not fully
-  stateless: `render/context.lua`, `render/sticks.lua`,
-  `render/topbar.lua`, and `render/timers.lua` each keep a module-level
-  icon-set cache keyed by theme folder (`dark`/`light`), and
-  `render/sticks.lua`/`render/topbar.lua` also recompute a
+  stateless, and exactly how each one caches its icons differs:
+  - `render/context.lua` and `render/timers.lua` each keep a single
+    icon-set cache keyed by theme folder (`dark`/`light`) -- every icon
+    they load lives under a theme-specific folder.
+  - `render/topbar.lua` keeps *two* caches: a theme-keyed cache (like
+    context.lua/timers.lua) for its link icons, plus a separate
+    one-time, theme-independent load for its battery icons, which live
+    under `icons/battery/` rather than a theme folder.
+  - `render/sticks.lua`'s icons (battery and connection status) are
+    entirely theme-independent, so it has no theme-keyed cache at all --
+    just a single one-time load, the same shape as topbar.lua's battery
+    icons.
+
+  `render/sticks.lua` and `render/topbar.lua` also recompute a
   theme-dependent shadow-color local inside `M.draw()`. This is safe to
   share across every instance of the widget precisely because it's
   *derived, bounded, and theme-keyed* -- for a given theme there is only
   ever one correct icon set or shadow color, so two instances on the same
   theme option converge on the same cached value instead of fighting over
-  it, and a bounded two-entry cache (one per theme) can't grow unbounded.
-  See `tests/spec/icon_cache_spec.lua` for the regression this cache
-  keying fixes (module-level state that remembered only the
-  *most-recently-drawn* theme used to thrash on every alternating-theme
-  redraw). Loading one shared copy of each render module per widget
+  it, and a bounded two-entry cache (one per theme, where a cache is
+  theme-keyed at all) can't grow unbounded. See
+  `tests/spec/icon_cache_spec.lua` for the regression this cache keying
+  fixes (module-level state that remembered only the *most-recently-
+  drawn* theme used to thrash on every alternating-theme redraw), and its
+  "still loads the theme-independent battery icons exactly once" test for
+  the theme-independent half of this split. Loading one shared copy of
+  each render module per widget
   script (not per instance) is both correct and desirable for this
   reason; see Section 8's deferred-loading discussion in `main.lua`.
 - **Mutable per-instance state, must live on the widget table:**

@@ -90,53 +90,106 @@ return function(t, mock, paths)
   end)
 
   t.describe("release packaging: icon references resolve to a real file", function()
-    t.it("every openBitmapFromCandidates() call resolves for both the dark and the light theme", function()
-      -- Bucket real icon basenames by which theme(s) can actually reach
-      -- them: icons/dark/* and icons/light/* only resolve for their own
-      -- theme, everything else (icons/battery/*, icons/link/*, and any
-      -- flat icons/*.png) is theme-agnostic and resolves for both -- see
-      -- each render/*.lua's loadIconSet()/buildThemedRoots() for the
-      -- actual root lists this mirrors.
-      --
-      -- A flat basename-anywhere-under-icons/ check (the original version
-      -- of this test) can't tell "exists for the dark theme" from "exists
-      -- for the light theme" apart, so it would pass even if e.g.
-      -- icons/dark/current.png were deleted and only icons/light/
-      -- current.png remained -- found via external review (2026-08-07).
-      local iconFiles = paths.listFiles(paths.WIDGET_DIR .. "icons", "%.png$")
-      local existsForTheme = { dark = {}, light = {} }
-      for _, path in ipairs(iconFiles) do
-        local normalized = path:gsub("\\", "/")
-        local basename = normalized:match("([^/]+)$")
-        if basename then
-          if normalized:find("/icons/dark/", 1, true) then
-            existsForTheme.dark[basename] = true
-          elseif normalized:find("/icons/light/", 1, true) then
-            existsForTheme.light[basename] = true
-          else
-            existsForTheme.dark[basename] = true
-            existsForTheme.light[basename] = true
-          end
-        end
-      end
-      t.assertTrue(#iconFiles > 0, "expected to find at least one .png under " .. paths.WIDGET_DIR .. "icons")
+    -- Which root(s) a given openBitmapFromCandidates() call actually
+    -- searches (icons/<theme>/, icons/battery/, icons/link/, flat
+    -- icons/, or some combination as a fallback chain) is decided by
+    -- each render/*.lua file's own root-building logic, which differs
+    -- per renderer and even per call site within one renderer (compare
+    -- render/context.lua's loadIconSet(), which has no flat fallback, to
+    -- render/topbar.lua's buildThemedRoots(), which does; or
+    -- render/sticks.lua's battery/link icons, which aren't theme-scoped
+    -- at all). Reconstructing that scoping from source text requires
+    -- either parsing every root-list definition or hard-coding each call
+    -- site's folder by hand -- both drift-prone. So instead of guessing,
+    -- this drives each renderer's real draw() against a Bitmap.open that
+    -- checks the actual icons/ tree on disk, for both themes, and
+    -- records which candidate basenames it actually resolved -- exactly
+    -- the codepath and roots EdgeTX itself would use. Found incomplete
+    -- via external review (2026-08-07): an earlier version of this test
+    -- matched candidate basenames anywhere under icons/, which also
+    -- can't tell "resolves via *this* call's actual roots" from "a
+    -- same-named file happens to sit in an unrelated specialized
+    -- subfolder" apart.
+    local RENDERER_DRAWS = {
+      { path = "render/context.lua", bounds = { x = 0, y = 0, w = 320, h = 80 } },
+      { path = "render/sticks.lua", bounds = { x = 0, y = 0, w = 480, h = 130 } },
+      { path = "render/topbar.lua", bounds = { x = 0, y = 0, w = 480, h = 40 } },
+      { path = "render/timers.lua", bounds = { x = 0, y = 0, w = 320, h = 40 } },
+    }
 
+    -- Strips a candidate's full simulated EdgeTX path (e.g.
+    -- "/SCRIPTS/WIDGETS/FPVDASH/icons/dark/current.png") down to the
+    -- "icons/..." suffix shared by all 4 install-path root variants, so
+    -- it can be checked against this repo's real on-disk layout.
+    local function realIconFileExists(path)
+      local suffix = path:match("FPVDASH/(icons/.+)$")
+      return suffix ~= nil and paths.readFile(paths.WIDGET_DIR .. suffix) ~= nil
+    end
+
+    t.it("every openBitmapFromCandidates() call resolves for both the dark and the light theme", function()
       local problems = {}
-      for _, file in ipairs(widgetLuaFiles()) do
-        local content = paths.readFile(file)
-        if content then
-          for _, candidates in ipairs(extractIconCalls(content)) do
-            for _, themeName in ipairs({ "dark", "light" }) do
+
+      for _, renderer in ipairs(RENDERER_DRAWS) do
+        local content = paths.readFile(paths.widget(renderer.path))
+        local calls = content and extractIconCalls(content) or {}
+
+        if #calls > 0 then
+          for _, themeName in ipairs({ "dark", "light" }) do
+            -- A single draw() only ever takes each call's *primary*
+            -- candidate path -- render/sticks.lua's connection icons
+            -- fall back to openBitmapFromCandidates(roots, {"link.png",
+            -- ...}) only "if not CONNECTION_ICONS.ok" (i.e. only if the
+            -- primary "connection-ok.png" lookup already failed), so one
+            -- draw() against the repo's current, complete icon set can
+            -- never reach that fallback call at all. Re-drawing with
+            -- every previously-resolved file hidden forces the next
+            -- fallback layer to actually run, so repeating until a draw
+            -- opens nothing new discovers every reachable candidate, not
+            -- just the first one taken today.
+            local opened = {}
+            local hidden = {}
+            local sawNewOpen = true
+            while sawNewOpen do
+              sawNewOpen = false
+
+              mock.withInstall({ sensors = {} }, function()
+                Bitmap.open = function(path)
+                  local basename = path:match("([^/\\]+)$")
+                  if not hidden[basename] and realIconFileExists(path) then
+                    if not opened[basename] then
+                      opened[basename] = true
+                      sawNewOpen = true
+                    end
+                    return { __mockBitmap = path }
+                  end
+                  return nil
+                end
+
+                local read = paths.loadWidgetModule("telemetry/read.lua")
+                local session = read.init()
+                local snap = read.snapshot(session)
+                local evaluated = paths.loadWidgetModule("telemetry/state.lua").evaluate(snap)
+                local theme = { textColor = 0xFFFF, iconFolder = themeName, isLight = (themeName == "light") }
+
+                paths.loadWidgetModule(renderer.path).draw(renderer.bounds, snap, evaluated, theme)
+              end)
+
+              for basename in pairs(opened) do
+                hidden[basename] = true
+              end
+            end
+
+            for _, candidates in ipairs(calls) do
               local found = false
               for _, name in ipairs(candidates) do
-                if existsForTheme[themeName][name] then
+                if opened[name] then
                   found = true
                   break
                 end
               end
               if not found then
-                problems[#problems + 1] = file .. " (" .. themeName .. " theme): none of [" ..
-                  table.concat(candidates, ", ") .. "] resolve under icons/"
+                problems[#problems + 1] = renderer.path .. " (" .. themeName .. " theme): none of [" ..
+                  table.concat(candidates, ", ") .. "] were opened from disk during draw()"
               end
             end
           end
