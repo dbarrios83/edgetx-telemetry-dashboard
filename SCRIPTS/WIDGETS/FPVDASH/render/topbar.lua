@@ -65,13 +65,19 @@ local GRID_WEIGHTS = { 10, 36, 20, 16, 18 }
 
 -- EdgeTX widget text has no runtime glyph-metrics API, so these are
 -- documented per-character/line-height estimates used only to size
--- content for the group-centering math below, not measured values. Task 5's
--- EdgeTX Companion pass verifies/adjusts them if needed.
-local MODEL_TEXT_CHAR_W = 6
+-- content for the group-centering math below, not measured values.
+-- First-pass estimates were visibly wrong in EdgeTX Companion (Task 5
+-- pass, 2026-08-07): MODEL_TEXT_CHAR_W=6 underestimated the real BOLD
+-- MIDSIZE glyph width badly enough that the model name's actual rendered
+-- width overran the Model cell and was overlapped by the TX Battery
+-- icon; TX_TEXT_H=12 was too short for MIDSIZE, so TX battery text and
+-- its icon did not share a visual center. Both widened; revisit if still
+-- off.
+local MODEL_TEXT_CHAR_W = 13
 local MODEL_TEXT_H = 35
-local MODEL_TEXT_PADDING = 8
+local MODEL_TEXT_PADDING = 12
 local TX_TEXT_CHAR_W = 8
-local TX_TEXT_H = 12
+local TX_TEXT_H = 20
 local TX_BATTERY_ICON_W = 30
 local TX_BATTERY_ICON_H = 32
 local TX_ICON_TEXT_GAP = 4

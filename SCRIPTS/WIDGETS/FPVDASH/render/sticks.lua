@@ -90,10 +90,11 @@ local STICK_VALUES_BOTTOM_NUDGE = 0
 -- (render/primitives.lua's centerGroup) inside the Receiver Battery cell.
 -- EdgeTX widget text has no runtime glyph-metrics API, so RX_BAT_TEXT_H is
 -- a documented estimate of _MIDSIZE's rendered height rather than a
--- measured value -- close enough for centering math; Task 5's EdgeTX
--- Companion pass verifies/adjusts it if needed.
+-- measured value. First-pass estimate (12) was visibly too short in
+-- EdgeTX Companion -- text and icon did not share a visual center --
+-- widened to 20 (Task 5 Companion pass, 2026-08-07); revisit if still off.
 local RX_BAT_TEXT_CHAR_W = 7
-local RX_BAT_TEXT_H = 12
+local RX_BAT_TEXT_H = 20
 local RX_BAT_ICON_TEXT_GAP = 4
 
 -- Link-quality block keeps exact vertical alignment with RX battery block
