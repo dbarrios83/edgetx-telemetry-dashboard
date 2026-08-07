@@ -1,6 +1,6 @@
 -- Footer renderer.
 -- Renders ELRS version bottom-left and EdgeTX version bottom-right.
--- Shown only on 480×320 class radios; omitted on 480×272 class.
+-- Shown on every supported resolution (Multi-Resolution Layout, Task 2).
 
 local M = {}
 
@@ -56,9 +56,15 @@ local _SMLSIZE = (type(SMLSIZE) == "number") and SMLSIZE or 0
 local MARGIN_H = 4
 -- Right margin is wider to keep EdgeTX text clear of the screen edge.
 local MARGIN_H_RIGHT = 7
--- Estimated pixel width per SMLSIZE character.
--- Slightly over-estimated so right-aligned text stays inside the zone.
+-- Fallback estimated pixel width per SMLSIZE character, used only when
+-- lcd.sizeText isn't available (see sizeText below). This rect sits
+-- flush against the widget's right edge with no neighbor to absorb a
+-- width underestimate -- a guessed estimate ran the EdgeTX version text
+-- off the visible screen at 800-wide (Multi-Resolution Layout, Task 6).
 local CHAR_W   = 6
+
+local sizeText = (primitivesModule and primitivesModule.sizeText)
+  or function(text, _, fallbackCharW) return (#(text or "") * (fallbackCharW or 6)), 8 end
 
 -- EdgeTX version is static — resolve once and cache.
 local _edgeTxVersionCached = nil
@@ -93,10 +99,6 @@ local function drawShadowText(x, y, text, size, color)
   end
 end
 
-local function estimateTextW(text)
-  return #text * CHAR_W
-end
-
 function M.draw(rect, telemetry, state, theme)
   if not rect then
     return
@@ -118,7 +120,7 @@ function M.draw(rect, telemetry, state, theme)
   drawShadowText(rect.x + MARGIN_H, ty, elrsText, _SMLSIZE, textColor)
 
   -- Bottom-right: EdgeTX version, right-aligned.
-  local edgeTxW = estimateTextW(edgeTxText)
+  local edgeTxW = sizeText(edgeTxText, _SMLSIZE, CHAR_W)
   drawShadowText(rect.x + rect.w - edgeTxW - MARGIN_H_RIGHT, ty, edgeTxText, _SMLSIZE, textColor)
 end
 

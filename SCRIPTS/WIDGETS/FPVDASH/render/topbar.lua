@@ -172,6 +172,8 @@ local centerGroup = (primitivesModule and primitivesModule.centerGroup)
   or function() return {} end
 local centerStart = (primitivesModule and primitivesModule.centerStart)
   or function(outerStart) return outerStart end
+local sizeText = (primitivesModule and primitivesModule.sizeText)
+  or function(text, _, fallbackCharW, fallbackH) return (#(text or "") * (fallbackCharW or 6)), (fallbackH or 8) end
 
 -- Icons are loaded lazily on the first draw call so that the Bitmap API is
 -- guaranteed to be available (EdgeTX only exposes it inside widget callbacks).
@@ -510,16 +512,20 @@ end
 -- One line ("<date> <time>"), vertically centered, right-aligned within
 -- the cell -- flush toward the widget's right edge like the pre-Task-3
 -- layout, but computed from the cell's own bounds instead of a fixed
--- rightPad hack.
+-- rightPad hack. This cell sits flush against the widget's right edge
+-- with no neighbor to absorb a width underestimate, so its width comes
+-- from real measurement (sizeText) rather than a guessed char width --
+-- a guessed estimate ran this line off the visible screen at 800-wide
+-- (Multi-Resolution Layout, Task 6).
 local function drawDateTime(rect, timeText, dateText)
   local text = dateText .. DATE_TIME_SEPARATOR .. timeText
-  local textW = #text * DATE_TIME_TEXT_CHAR_W
+  local textW, textH = sizeText(text, SMLSIZE, DATE_TIME_TEXT_CHAR_W, DATE_TIME_TEXT_H)
 
   local textX = rect.x + rect.w - textW - DATE_TIME_RIGHT_PADDING
   if textX < rect.x then
     textX = rect.x
   end
-  local textY = centerStart(rect.y, rect.h, DATE_TIME_TEXT_H)
+  local textY = centerStart(rect.y, rect.h, textH)
 
   drawShadowText(textX, textY, text, SMLSIZE, _TEXT_COLOR)
 end
@@ -546,9 +552,15 @@ function M.draw(bounds, telemetry, state, theme)
 
   -- Left-aligned within its cell (not centered) -- still vertically
   -- centered, and still truncates safely within the cell's width.
+  -- Vertical centering uses the real measured glyph height (sizeText)
+  -- rather than the guessed MODEL_TEXT_H -- an underestimate rendered
+  -- the model name uncomfortably close to the top bar's bottom edge at
+  -- 800-wide, where the pinned top bar is taller than the 480-wide
+  -- classes (Multi-Resolution Layout, Task 6).
   local modelText = truncateText(readModelName(), modelCell.w - MODEL_TEXT_PADDING, MODEL_TEXT_CHAR_W)
   local modelX = modelCell.x + MODEL_TEXT_PADDING
-  local modelY = centerStart(modelCell.y, modelCell.h, MODEL_TEXT_H)
+  local _, modelTextH = sizeText(modelText, MIDSIZE + _BOLD, MODEL_TEXT_CHAR_W, MODEL_TEXT_H)
+  local modelY = centerStart(modelCell.y, modelCell.h, modelTextH)
   drawShadowText(modelX, modelY, modelText, MIDSIZE, _TEXT_COLOR, _BOLD)
 
   local txV, txState = readTxBatteryInfo()

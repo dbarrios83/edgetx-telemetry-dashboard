@@ -153,6 +153,37 @@ function M.centerGroupVertical(rect, parts)
   return results
 end
 
+-- Returns the real rendered width/height of `text` at the given size
+-- flag (SMLSIZE, MIDSIZE, etc, optionally combined with BOLD), using
+-- EdgeTX's own lcd.sizeText() (color-LCD only, introduced 2.5.0 -- this
+-- widget already targets 2.12+) instead of a guessed characters-times-
+-- width estimate.
+--
+-- Multi-Resolution Layout, Task 6: per-character/line-height estimates
+-- throughout this widget (MODEL_TEXT_CHAR_W, DATE_TIME_TEXT_CHAR_W, etc)
+-- were tuned by trial and error against 480-wide Companion screenshots
+-- and turned out inconsistent with each other and unsafe at 800-wide --
+-- text right-aligned flush against a screen edge overflowed off-screen,
+-- and text vertically centered using an underestimated height rendered
+-- too close to its cell's bottom edge. Real measurement replaces guessing
+-- wherever a wrong answer is visibly unsafe (an edge-flush cell with no
+-- neighbor to absorb the error), rather than re-tuning another constant
+-- that would only be correct by chance for the strings actually tested.
+--
+-- Falls back to the given estimate when lcd.sizeText isn't available
+-- (matches this module's existing defensive-fallback pattern for other
+-- EdgeTX APIs, e.g. openBitmapFromCandidates guarding Bitmap.open).
+function M.sizeText(text, sizeFlag, fallbackCharW, fallbackH)
+  text = text or ""
+  if lcd and type(lcd.sizeText) == "function" then
+    local ok, w, h = pcall(lcd.sizeText, text, sizeFlag or 0)
+    if ok and type(w) == "number" and type(h) == "number" then
+      return w, h
+    end
+  end
+  return (#text * (fallbackCharW or 6)), (fallbackH or 8)
+end
+
 -- Coerce a raw EdgeTX sensor value (a plain number, a {value=...}/
 -- {val=...} table, or a numeric string) to a plain number, or nil if it
 -- isn't one of those shapes.

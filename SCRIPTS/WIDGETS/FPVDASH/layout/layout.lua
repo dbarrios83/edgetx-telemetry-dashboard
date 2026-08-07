@@ -32,7 +32,14 @@ end
 -- Mark II / Jumper T16 / T18). All five regions must now be visible on
 -- every supported resolution, so the remaining regions shrink to make
 -- room for it instead (see the shrink block below).
-local FOOTER_H = 16
+--
+-- FOOTER_H_MIN is a floor, not a fixed size: footerH below is
+-- percentage-of-height like stickH/contextH, so it also sizes up
+-- generously on 800×480 instead of staying a fixed thin strip
+-- (Multi-Resolution Layout, Task 6 -- Companion testing showed the
+-- footer looked disproportionately thin against how generously
+-- everything else scaled up on the larger screen).
+local FOOTER_H_MIN = 16
 
 -- The strip in the top-left corner (EdgeTX logo etc.) is not drawn by this
 -- widget at all -- it's EdgeTX's own system TopBar, rendered above/around
@@ -78,7 +85,7 @@ function M.compute(zone)
   end
 
   local gap = 2
-  local footerH = FOOTER_H
+  local footerH = math.max(FOOTER_H_MIN, math.floor(h * 0.05))
   local numGaps = 4
 
   -- Pinned exactly to the real EdgeTX logo height for this zone width --
@@ -88,21 +95,19 @@ function M.compute(zone)
   local stickH  = math.max(58, math.floor(h * 0.32))
   local contextH = math.max(20, math.floor(h * 0.14))
 
-  -- stickH/contextH/primaryH are percentage-of-height, so they already
-  -- shrink and grow proportionally to the zone's actual height without
-  -- any special-casing per resolution. Verified directly for all three
-  -- supported resolutions (Multi-Resolution Layout, Task 3) that this
-  -- alone -- once topBarH is pinned (Task 1) and the footer is mandatory
-  -- (Task 2) -- already satisfies every region-sizing goal with comfortable
-  -- margin, so no further rebalancing was needed here:
-  --   480x320: stick=102 primary=105 context=44 (unchanged from before)
-  --   480x272: stick=87  primary=78  context=38  (shrink-under-pressure
-  --            path never triggers -- primaryH=78 stays well above its
-  --            40px minimum even with the pinned top bar + mandatory
-  --            footer both now claiming space here)
-  --   800x480: stick=153 primary=174 context=67  (visibly more generous
-  --            than 480x272's proportions, purely from being computed
-  --            against a taller zone -- no extra logic required)
+  -- stickH/contextH/footerH/primaryH are all percentage-of-height, so
+  -- they shrink and grow proportionally to the zone's actual height
+  -- without any special-casing per resolution. Verified directly for all
+  -- three supported resolutions (Multi-Resolution Layout, Tasks 3 and 6)
+  -- that this satisfies every region-sizing goal with comfortable margin:
+  --   480x320: stick=102 primary=105 context=44 footer=16 (unchanged)
+  --   480x272: stick=87  primary=78  context=38  footer=16 (unchanged;
+  --            shrink-under-pressure path never triggers -- primaryH=78
+  --            stays well above its 40px minimum even with the pinned
+  --            top bar + mandatory footer both claiming space here)
+  --   800x480: stick=153 primary=166 context=67  footer=24 (visibly more
+  --            generous than 480x272's proportions across every region,
+  --            including the footer -- no extra logic required)
   local minimumPrimaryH = 40
   local primaryH = h - (topBarH + stickH + contextH + footerH + (gap * numGaps))
 
@@ -128,7 +133,7 @@ function M.compute(zone)
     primaryGrid  = rect(x, primaryY, w, primaryH),
     contextRow   = rect(x, contextY, w, contextH),
     -- Footer is bottom-anchored so rounding never pushes it outside the zone.
-    footerRow    = rect(x, y + h - FOOTER_H, w, FOOTER_H),
+    footerRow    = rect(x, y + h - footerH, w, footerH),
   }
 end
 

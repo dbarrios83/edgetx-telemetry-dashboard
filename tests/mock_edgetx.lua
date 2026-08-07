@@ -156,6 +156,26 @@ function M.install(fixture)
     drawBitmap = recordCall("drawBitmap"),
     drawLine = recordCall("drawLine"),
     setColor = recordCall("setColor"),
+    -- Mock approximation only, not real EdgeTX font metrics -- this
+    -- desktop harness has no real renderer, so there is no ground truth
+    -- to match. Keyed on this mock's own SMLSIZE=0/MIDSIZE=4/DBLSIZE=8
+    -- tokens below, just distinct enough per size for tests to verify a
+    -- caller actually uses sizeText's return value for positioning, not
+    -- to assert pixel-perfect real-world sizes (that's EdgeTX Companion's
+    -- job -- see render/primitives.lua's sizeText comment).
+    sizeText = function(text, flags)
+      text = tostring(text or "")
+      flags = flags or 0
+      local perChar, height
+      if flags >= 8 then
+        perChar, height = 12, 20
+      elseif flags >= 4 then
+        perChar, height = 9, 16
+      else
+        perChar, height = 5, 8
+      end
+      return #text * perChar, height
+    end,
   })
 
   setGlobal("Bitmap", {
