@@ -30,7 +30,7 @@ max_line_length = false
 read_globals = {
   -- Sensor / telemetry read API
   "getValue", "getFieldInfo", "getFlightMode", "getRSSI", "getTime",
-  "getDateTime", "getVersion", "model",
+  "getDateTime", "getVersion", "getStickMode", "model",
   -- CRSF telemetry bus (ELRS device-info request/response)
   "crossfireTelemetryPush", "crossfireTelemetryPop",
   -- EdgeTX's substitute for require() -- see main.lua/telemetry/read.lua
@@ -64,5 +64,10 @@ files["tests/spec/icon_cache_spec.lua"] = {
   globals = { "Bitmap" },
 }
 files["tests/spec/release_spec.lua"] = {
+  globals = { "Bitmap" },
+}
+-- forceIconsMissing() replaces Bitmap.open with a stub that always
+-- returns nil, to exercise the icon-unavailable fallback paths.
+files["tests/spec/layout_grid_spec.lua"] = {
   globals = { "Bitmap" },
 }

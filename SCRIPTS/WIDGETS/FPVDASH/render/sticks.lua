@@ -54,7 +54,6 @@ local _RED    = (type(RED) == "number") and RED or _YELLOW
 local _BLACK  = 0x0000
 
 local _SMLSIZE = (type(SMLSIZE) == "number") and SMLSIZE or 0
-local _MIDSIZE = (type(MIDSIZE) == "number") and MIDSIZE or _SMLSIZE
 
 local BATTERY_ICON_W = 20
 local BATTERY_ICON_H = 32

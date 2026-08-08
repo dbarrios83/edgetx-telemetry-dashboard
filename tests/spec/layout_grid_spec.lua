@@ -245,12 +245,16 @@ return function(t, mock, paths)
         t.assertNotNil(txIcon, "TX battery icon renders")
         t.assertTrue(withinCellX(txIcon.x, TX_BATTERY_ICON_W, expected[3]),
           "TX battery icon stays within cell 3 (TX Battery, 20%)")
+        t.assertTrue(withinCellY(txIcon.y, TX_BATTERY_ICON_H, expected[3]),
+          "TX battery icon stays vertically within cell 3")
         t.assertTrue(txIcon.x > expected[3].x + 20, "TX battery icon is right-aligned away from cell 3's left edge, not left-aligned")
 
         local linkIcon = bitmapCallContaining(bitmaps, "link")
         t.assertNotNil(linkIcon, "connection icon renders")
         t.assertTrue(withinCellX(linkIcon.x, LINK_ICON_W, expected[4]),
           "connection icon stays within cell 4 (Receiver Connection, 16%)")
+        t.assertTrue(withinCellY(linkIcon.y, LINK_ICON_H, expected[4]),
+          "connection icon stays vertically within cell 4")
 
         -- Date and time render as one line ("3 Aug" + separator + "14:05"),
         -- right-aligned, with extra spacing between date and time.
