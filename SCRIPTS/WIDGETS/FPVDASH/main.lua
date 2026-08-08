@@ -190,6 +190,22 @@ local function resolveStickModeOption(raw)
 
   local n = math.floor(v + 0.5)
 
+  -- n==0 falling through to Auto (nil) below also covers a real EdgeTX
+  -- firmware quirk, not just an "out of range" guard: appending this
+  -- option to a zone that already had an FPVDASH instance (i.e. every
+  -- upgrade of an existing setup) makes EdgeTX zero-initialize the new
+  -- slot without ever applying our declared default. Traced to
+  -- radio/src/gui/colorlcd/mainview/widget.cpp: WidgetFactory::create()
+  -- only passes forced=true to WidgetPersistentData::setDefault() when
+  -- a widget is freshly placed; on every later reload of an existing
+  -- instance it's forced=false, and setDefault() only overwrites a
+  -- slot when its type differs from the option's -- but a fresh
+  -- zero-valued slot's synthesized WOV_Unsigned type already matches a
+  -- Combo option's resolved type, so the real default is never written.
+  -- Nothing on the Lua side can fix this (no API to write a widget's
+  -- own persisted option); it's cosmetic-only (n==0 already resolves to
+  -- Auto here) and self-corrects the moment the user picks any value in
+  -- the option's dropdown, which writes the slot directly.
   if OPTION_COMBO then
     -- Choice labels are {"Auto","1","2","3","4"}, 1-based; n==1 is Auto.
     if n >= 2 and n <= 5 then

@@ -66,6 +66,37 @@ The widget currently provides these options:
 	 Controls section overlay transparency. Four levels, selected as "1"-"4"
 	 (Choice) or 0-3 (plain numeric) depending on what your EdgeTX build
 	 exposes -- both resolve to the same four transparency levels.
+3. `stickMode` (`COMBO`/`Choice` where supported, plain numeric otherwise):
+	 Tells the stick monitor which physical stick your radio's Stick Mode
+	 (Radio Setup > Stick Mode) assigns to each channel, so its two boxes
+	 move with the sticks that actually match your hardware. `Auto` (the
+	 default) reads it directly from the radio (`getStickMode()`, present
+	 since EdgeTX 2.12) -- most users never need to touch this. Only set
+	 it explicitly (`1`-`4`) to override that reading.
+
+	 **`-1` display defect on existing zones:** if this widget zone was
+	 already configured before this option existed, EdgeTX's own
+	 settings screen may show `-1` here instead of `Auto` the first time
+	 you open it. This is an EdgeTX migration/display defect, not a
+	 widget bug: appending a new option to an already-placed widget
+	 instance leaves that slot's stored value uninitialized, and
+	 EdgeTX's own default-filling logic never notices, because the
+	 uninitialized slot's placeholder type already matches the option's
+	 real type. The widget already treats this (and any other value it
+	 doesn't recognize) as `Auto` internally, so behavior is correct
+	 regardless of the label -- only the display is wrong. Lua has no
+	 way to rewrite its own persisted option value, so it can't self-
+	 repair; opening the dropdown and selecting any value once (even
+	 re-selecting `Auto`) writes a real value and permanently corrects
+	 the display. New widget placements are unaffected and show `Auto`
+	 correctly from the start.
+
+	 A plain numeric `0`-`4` option (`0` = Auto) would avoid this
+	 display defect entirely, since an uninitialized `0` and an explicit
+	 `0` would then be indistinguishable -- but that trades away the
+	 self-documenting `Auto`/`1`-`4` dropdown for bare numbers, which is
+	 worse for users in the common case just to paper over a cosmetic,
+	 self-correcting, one-time-per-zone display glitch. Not worth it.
 
 ![Widget Settings](docs/img/widget_setting.png)
 
