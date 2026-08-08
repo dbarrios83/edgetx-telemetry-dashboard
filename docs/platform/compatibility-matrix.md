@@ -38,14 +38,22 @@ simulator commitment, not a runtime check.
 
 Full radio list and layout strategy live in
 [hardware-targets.md](hardware-targets.md); repeated here only as the
-two classes this matrix's RFMD/alias rules apply to:
+classes this matrix's RFMD/alias rules apply to (RFMD/alias resolution
+itself is resolution-independent, so this section doesn't change with
+the addition of the third class below):
 
 - **480x320** (primary): RadioMaster TX15, TX15 Max, Jumper T15, T15 Pro
 - **480x272** (compatible): RadioMaster TX16S, TX16S Mark II, Jumper T16, T18
+- **800x480** (compatible): RadioMaster TX16S Mark III
 
 [layout/layout.lua](../../SCRIPTS/WIDGETS/FPVDASH/layout/layout.lua)
-distinguishes the two by zone height (`FOOTER_THRESHOLD = 290`), not by
-querying the radio model.
+distinguishes zone height by the actual widget zone dimensions passed
+in at runtime, not by querying the radio model. (An earlier
+`FOOTER_THRESHOLD = 290` height check used to gate footer visibility;
+the Multi-Resolution Layout project removed it -- all five regions now
+render on every resolution, including 800x480, via `topBarH` pinned to
+EdgeTX's real per-width system-logo height. See
+[hardware-targets.md](hardware-targets.md) Section 5.)
 
 ## 3. Protocol scope: ExpressLRS vs. generic telemetry
 

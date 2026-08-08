@@ -10,16 +10,16 @@ Supported screen classes include:
 
 - 480 × 272
 - 480 × 320
-
-Future radios may include larger displays such as:
-
-- 800 × 480
+- 800 × 480 (RadioMaster TX16S Mark III; confirmed and tested -- see
+  [docs/platform/hardware-targets.md](../platform/hardware-targets.md)
+  Section 5)
 
 The layout should be designed so that:
 
 - 480 × 272 acts as the base layout
 - 480 × 320 extends the vertical layout
-- larger screens may enable additional panels
+- 800 × 480 uses the same region set, with the top bar height scaled to
+  that width's real system-logo height
 
 ## Design Strategy
 

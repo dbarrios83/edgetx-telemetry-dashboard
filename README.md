@@ -27,6 +27,9 @@ This guide explains how to install and configure the `FPVDASH` widget from this 
    **Compatible — 480 × 272 px:**
    RadioMaster TX16S, TX16S Mark II · Jumper T16, T18
 
+   **Compatible — 800 × 480 px:**
+   RadioMaster TX16S Mark III
+
 ## Installation Steps
 
 ### 1. Download the Widget Files

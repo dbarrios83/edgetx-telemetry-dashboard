@@ -33,18 +33,31 @@ Known radios in the 480 x 272 class:
 
 Layouts designed for 480 x 320 should remain compatible with this class by compressing vertical spacing.
 
-## 5. Future Large Displays
-Some future radios may provide larger display classes.
+## 5. Large Display Class
+Large display class:
+- Resolution: 800 x 480 pixels
 
-Example:
-- RadioMaster TX16S Mark III (larger display class)
+Known radios in the 800 x 480 class:
+- RadioMaster TX16S Mark III
 
-Large screens should be supported later through an expanded layout mode with additional telemetry panels.
+**Status: supported and tested** (Multi-Resolution Layout project). This
+class was originally listed here as a future/out-of-scope target (see
+[grid-layout-verification-checklist.md](grid-layout-verification-checklist.md),
+which predates this and still records 800x480 as explicitly out of scope
+at the time it was written), but a later project confirmed and fixed it:
+`topBarH` is pinned to EdgeTX's own real system-logo height per width
+(45px at 480-wide, 62px at 800-wide -- see
+[layout.lua](../../SCRIPTS/WIDGETS/FPVDASH/layout/layout.lua)'s
+`menuHeaderHeight()`), and all five dashboard regions render correctly
+at this resolution. Covered by
+[tests/spec/layout_spec.lua](../../tests/spec/layout_spec.lua) and the
+`screen_800x480` test fixture.
 
 ## 6. Layout Compatibility Strategy
 The dashboard layout strategy is:
 - Base layout compatible with 480 x 272
 - Extended layout for 480 x 320
-- Future expanded layouts for larger screens
+- Large-display layout for 800 x 480, using the same region set with
+  `topBarH` scaled to that width's real system-logo height
 
 This keeps the dashboard usable across the majority of EdgeTX color radios while allowing progressive enhancement.
