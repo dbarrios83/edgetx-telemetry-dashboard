@@ -91,6 +91,19 @@ function M.install(fixture)
     return fixture.rssiStream or 0, 45, 42
   end)
 
+  -- getStickMode() (1-4) is present from this project's 2.12 floor
+  -- onward (confirmed against the tagged v2.12.0/v2.12.1 source, despite
+  -- its own doc comment saying "Introduced in 3.0"), but only install it
+  -- when the fixture opts in, so a fixture that omits `stickMode` can
+  -- still exercise production code's `type(getStickMode) == "function"`
+  -- guard -- e.g. for firmware that doesn't define the global at all,
+  -- rather than "defines it but it errors".
+  if fixture.stickMode ~= nil then
+    setGlobal("getStickMode", function()
+      return fixture.stickMode
+    end)
+  end
+
   -- fixture.dateTime: table like { hour=14, min=5, day=3, mon=8 }, or nil
   -- to simulate getDateTime() being unavailable.
   setGlobal("getDateTime", function()

@@ -67,6 +67,12 @@ local LQ_ICON_H = 30
 -- being a centered group smaller than the cell itself.
 local GRID_WEIGHTS = { 30, 40, 30 }
 
+-- Fallback when theme.stickMode is missing or invalid (e.g. a caller
+-- that doesn't thread main.lua's resolved theme through) -- matches this
+-- widget's original, always-Mode-2 behavior. See main.lua's
+-- resolveStickMode() for how theme.stickMode itself is normally derived.
+local DEFAULT_STICK_MODE = 2
+
 -- Stick monitor visual tuning.
 local SHOW_STICK_AXIS = false
 local SHOW_STICK_VALUES = false
@@ -571,11 +577,21 @@ local function roundedInt(v)
   return math.ceil(v - 0.5)
 end
 
-local function drawStickValues(leftRect, rightRect, yaw, throttle, roll, pitch)
-  local tText = string.format("T:%d", roundedInt(throttle))
-  local rText = string.format("R:%d", roundedInt(yaw))
-  local eText = string.format("E:%d", roundedInt(pitch))
-  local aText = string.format("A:%d", roundedInt(roll))
+-- Labels/values are passed in already resolved to each box's actual
+-- top (Y-axis) and bottom (X-axis) channel -- see the call site, which
+-- derives them from the same ailOnRight/eleOnRight flags M.draw() uses
+-- for the dots themselves, so this debug overlay can't drift back out
+-- of sync with which physical stick moves which box (found in review:
+-- this used to hardcode T/R under the left box and E/A under the right,
+-- which only matched Stick Mode 2).
+local function drawStickValues(leftRect, rightRect,
+  leftTopLabel, leftTopValue, leftBottomLabel, leftBottomValue,
+  rightTopLabel, rightTopValue, rightBottomLabel, rightBottomValue)
+
+  local leftTopText = string.format("%s:%d", leftTopLabel, roundedInt(leftTopValue))
+  local leftBottomText = string.format("%s:%d", leftBottomLabel, roundedInt(leftBottomValue))
+  local rightTopText = string.format("%s:%d", rightTopLabel, roundedInt(rightTopValue))
+  local rightBottomText = string.format("%s:%d", rightBottomLabel, roundedInt(rightBottomValue))
 
   -- Fixed anchors: text X does not depend on digit count.
   local leftX = leftRect.x + STICK_VALUES_LEFT_X_NUDGE
@@ -586,10 +602,10 @@ local function drawStickValues(leftRect, rightRect, yaw, throttle, roll, pitch)
   local bottomY = leftRect.y + leftRect.h + STICK_VALUES_BOTTOM_OUTSIDE_GAP + STICK_VALUES_BOTTOM_NUDGE
   if topY < 0 then topY = 0 end
 
-  drawShadowText(leftX, topY, tText, _SMLSIZE, _TEXT_COLOR)
-  drawShadowText(leftX, bottomY, rText, _SMLSIZE, _TEXT_COLOR)
-  drawShadowText(rightX, topY, eText, _SMLSIZE, _TEXT_COLOR)
-  drawShadowText(rightX, bottomY, aText, _SMLSIZE, _TEXT_COLOR)
+  drawShadowText(leftX, topY, leftTopText, _SMLSIZE, _TEXT_COLOR)
+  drawShadowText(leftX, bottomY, leftBottomText, _SMLSIZE, _TEXT_COLOR)
+  drawShadowText(rightX, topY, rightTopText, _SMLSIZE, _TEXT_COLOR)
+  drawShadowText(rightX, bottomY, rightBottomText, _SMLSIZE, _TEXT_COLOR)
 end
 
 local function drawStickAxes(rect)
@@ -697,13 +713,39 @@ function M.draw(bounds, telemetry, state, theme)
   local roll = readInput(INPUT_SOURCES.roll)
   local pitch = readInput(INPUT_SOURCES.pitch)
 
-  -- Left stick: X=rudder, Y=throttle.
-  -- Right stick: X=aileron, Y=elevator.
-  drawStickHud(leftRect, yaw, throttle, nil)
-  drawStickHud(rightRect, roll, pitch, nil)
+  local stickMode = theme and theme.stickMode
+  if type(stickMode) ~= "number" or stickMode < 1 or stickMode > 4 then
+    stickMode = DEFAULT_STICK_MODE
+  end
+
+  -- Which physical stick carries aileron/rudder and elevator/throttle
+  -- flips per EdgeTX's Stick Mode setting (verified against EdgeTX
+  -- firmware's radio/src/input_mapping.cpp mode table and radio/src/
+  -- keys.cpp's ailRight/eleRight flags) -- getValue("ail")/"ele"/"thr"/
+  -- "rud" already report the mode-corrected logical channel, so only
+  -- which on-screen box each one lands in needs to track the mode.
+  local ailOnRight = (stickMode == 1 or stickMode == 2)
+  local eleOnRight = (stickMode == 2 or stickMode == 4)
+
+  local leftX, rightX = roll, yaw
+  if ailOnRight then leftX, rightX = yaw, roll end
+
+  local leftY, rightY = pitch, throttle
+  if eleOnRight then leftY, rightY = throttle, pitch end
+
+  drawStickHud(leftRect, leftX, leftY, nil)
+  drawStickHud(rightRect, rightX, rightY, nil)
 
   if SHOW_STICK_VALUES then
-    drawStickValues(leftRect, rightRect, yaw, throttle, roll, pitch)
+    local leftTopLabel, rightTopLabel = "E", "T"
+    if eleOnRight then leftTopLabel, rightTopLabel = "T", "E" end
+
+    local leftBottomLabel, rightBottomLabel = "A", "R"
+    if ailOnRight then leftBottomLabel, rightBottomLabel = "R", "A" end
+
+    drawStickValues(leftRect, rightRect,
+      leftTopLabel, leftY, leftBottomLabel, leftX,
+      rightTopLabel, rightY, rightBottomLabel, rightX)
   end
 
   drawLinkQualitySection(leftSection, telemetry, state)

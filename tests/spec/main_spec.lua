@@ -189,4 +189,88 @@ return function(t, mock, paths)
       end)
     end)
   end)
+
+  -- Stick Modes feature: theme.stickMode feeds render/sticks.lua's
+  -- left/right box assignment. "Auto" (the declared default) must prefer
+  -- getStickMode() when the firmware provides it -- which it does from
+  -- this project's 2.12 floor onward (confirmed against the tagged
+  -- v2.12.0/v2.12.1 source; its "Introduced in 3.0" doc comment in
+  -- EdgeTX's own source is stale) -- and otherwise fall back to Mode 2,
+  -- this widget's original, always-Mode-2 behavior. An explicit override
+  -- must always win over getStickMode(), as a manual escape hatch for any
+  -- firmware that genuinely doesn't provide it.
+  t.describe("main.lua stick mode resolution (Choice/Combo option, 1-based; labels Auto/1/2/3/4)", function()
+    t.it("falls back to Mode 2 when Auto and getStickMode() is unavailable", function()
+      mock.withInstall({ sensors = {} }, function() -- no fixture.stickMode -> getStickMode undefined
+        local main = paths.loadWidgetModule("main.lua")
+        local widget = main.create(ZONE, { darkTheme = 1, stickMode = 1 }) -- "Auto"
+        t.assertEqual(widget.theme.stickMode, 2)
+      end)
+    end)
+
+    t.it("prefers getStickMode() when Auto and the firmware provides it", function()
+      mock.withInstall({ sensors = {}, stickMode = 3 }, function()
+        local main = paths.loadWidgetModule("main.lua")
+        local widget = main.create(ZONE, { darkTheme = 1, stickMode = 1 }) -- "Auto"
+        t.assertEqual(widget.theme.stickMode, 3)
+      end)
+    end)
+
+    t.it("an explicit override always wins over getStickMode()", function()
+      mock.withInstall({ sensors = {}, stickMode = 2 }, function()
+        local main = paths.loadWidgetModule("main.lua")
+        local widget = main.create(ZONE, { darkTheme = 1, stickMode = 5 }) -- explicit "4"
+        t.assertEqual(widget.theme.stickMode, 4)
+      end)
+    end)
+
+    t.it("maps all four explicit combo levels to their mode numbers", function()
+      mock.withInstall({ sensors = {} }, function()
+        local main = paths.loadWidgetModule("main.lua")
+        local seen = {}
+        for level = 2, 5 do
+          local widget = main.create(ZONE, { darkTheme = 1, stickMode = level })
+          seen[level] = widget.theme.stickMode
+        end
+        t.assertEqual(seen[2], 1)
+        t.assertEqual(seen[3], 2)
+        t.assertEqual(seen[4], 3)
+        t.assertEqual(seen[5], 4)
+      end)
+    end)
+
+    t.it("resolves the declared default (1, Auto) to Mode 2 when stickMode is omitted", function()
+      mock.withInstall({ sensors = {} }, function()
+        local main = paths.loadWidgetModule("main.lua")
+        local widget = main.create(ZONE, { darkTheme = 1 }) -- stickMode omitted
+        t.assertEqual(widget.theme.stickMode, 2)
+      end)
+    end)
+  end)
+
+  t.describe("main.lua stick mode resolution (plain VALUE option, 0-based; 0=Auto)", function()
+    t.it("falls back to Mode 2 when Auto (0) and getStickMode() is unavailable", function()
+      mock.withInstall({ sensors = {}, disableCombo = true }, function()
+        local main = paths.loadWidgetModule("main.lua")
+        local widget = main.create(ZONE, { darkTheme = 1, stickMode = 0 })
+        t.assertEqual(widget.theme.stickMode, 2)
+      end)
+    end)
+
+    t.it("prefers getStickMode() when Auto (0) and the firmware provides it", function()
+      mock.withInstall({ sensors = {}, disableCombo = true, stickMode = 4 }, function()
+        local main = paths.loadWidgetModule("main.lua")
+        local widget = main.create(ZONE, { darkTheme = 1, stickMode = 0 })
+        t.assertEqual(widget.theme.stickMode, 4)
+      end)
+    end)
+
+    t.it("an explicit override (1-4) always wins over getStickMode()", function()
+      mock.withInstall({ sensors = {}, disableCombo = true, stickMode = 1 }, function()
+        local main = paths.loadWidgetModule("main.lua")
+        local widget = main.create(ZONE, { darkTheme = 1, stickMode = 3 })
+        t.assertEqual(widget.theme.stickMode, 3)
+      end)
+    end)
+  end)
 end

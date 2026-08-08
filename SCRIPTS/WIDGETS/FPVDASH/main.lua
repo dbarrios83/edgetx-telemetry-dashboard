@@ -97,11 +97,13 @@ if OPTION_COMBO then
   WIDGET_OPTIONS = {
     { "darkTheme", BOOL, 1 },
     { "transpLvl", OPTION_COMBO, 1, { "1","2","3","4" } },
+    { "stickMode", OPTION_COMBO, 1, { "Auto","1","2","3","4" } },
   }
 else
   WIDGET_OPTIONS = {
     { "darkTheme", BOOL, 1 },
     { "transpLvl", VALUE, 1, 0, 3 },
+    { "stickMode", VALUE, 0, 0, 4 },
   }
 end
 
@@ -150,6 +152,77 @@ local function resolveTransparencyValue(raw)
 end
 
 --------------------------------------------------
+-- Stick mode resolver
+--------------------------------------------------
+
+-- EdgeTX's Stick Mode (Radio Setup > Stick Mode) determines which
+-- physical gimbal drives Rudder/Elevator/Throttle/Aileron -- render/
+-- sticks.lua needs to know it to put the right axis in the right on-
+-- screen box. `getStickMode()` returns it directly (1-4). Its own doc
+-- comment in EdgeTX's source (radio/src/lua/api_general.cpp) says
+-- "Introduced in 3.0", but that's stale: checked directly against the
+-- tagged v2.12.0 and v2.12.1 source, `getStickMode`/`luaGetStickMode`
+-- is already present and registered there -- this project's documented
+-- 2.12 floor (compatibility-matrix.md Section 1) already has it. So
+-- "Auto" (the default) resolves via `getStickMode()` for every
+-- supported version in practice. The explicit 1-4 override still exists
+-- as a manual escape hatch -- same pattern `transpLvl` above already
+-- establishes -- for any firmware that doesn't provide it, falling back
+-- to Mode 2 (this widget's original, always-Mode-2 behavior) if neither
+-- is available.
+local DEFAULT_STICK_MODE = 2
+
+local function resolveStickModeOption(raw)
+
+  local v = raw
+
+  if type(v) == "table" then
+    v = v.value or v.val
+  end
+
+  if type(v) == "string" then
+    v = tonumber(v)
+  end
+
+  if type(v) ~= "number" then
+    return nil
+  end
+
+  local n = math.floor(v + 0.5)
+
+  if OPTION_COMBO then
+    -- Choice labels are {"Auto","1","2","3","4"}, 1-based; n==1 is Auto.
+    if n >= 2 and n <= 5 then
+      return n - 1
+    end
+  else
+    -- Plain VALUE option, 0-based; n==0 is Auto.
+    if n >= 1 and n <= 4 then
+      return n
+    end
+  end
+
+  return nil
+end
+
+local function resolveStickMode(options)
+
+  local override = resolveStickModeOption(options and options.stickMode)
+  if override then
+    return override
+  end
+
+  if type(getStickMode) == "function" then
+    local ok, mode = pcall(getStickMode)
+    if ok and type(mode) == "number" and mode >= 1 and mode <= 4 then
+      return mode
+    end
+  end
+
+  return DEFAULT_STICK_MODE
+end
+
+--------------------------------------------------
 -- Theme resolver
 --------------------------------------------------
 
@@ -169,6 +242,7 @@ local function resolveTheme(options)
     textColor = isDark and _WHITE or LIGHT_TEXT_COLOR,
     iconFolder = isDark and "dark" or "light",
     transparency = transparency_value,
+    stickMode = resolveStickMode(options),
   }
 end
 
