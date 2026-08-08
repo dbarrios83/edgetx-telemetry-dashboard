@@ -33,14 +33,20 @@ This guide explains how to install and configure the `FPVDASH` widget from this 
 ## Installation Steps
 
 ### 1. Download the Widget Files
-1. Clone or download this repository.
-2. Use the `SCRIPTS/WIDGETS/FPVDASH` folder from this project.
+Two ways to get the widget files -- either works with the steps below:
+
+- **Download a release (recommended):** grab `FPVDASH.zip` from the
+  [Releases page](https://github.com/dbarrios83/edgetx-telemetry-dashboard/releases/latest)
+  and extract it. The zip's `FPVDASH` folder is exactly the one step 2
+  below asks for.
+- **Clone or download this repository** (for the latest in-development
+  code) and use the `SCRIPTS/WIDGETS/FPVDASH` folder from this project.
 
 ### 2. Copy Files to the SD Card
 1. Connect the radio to your computer with USB.
 2. On the radio, select `USB Storage (SD)`.
 3. Open the mounted SD card and go to `/WIDGETS/`.
-4. Copy the `FPVDASH` folder (from `SCRIPTS/WIDGETS/FPVDASH` in this repo) into `/WIDGETS/`.
+4. Copy the `FPVDASH` folder from step 1 (the extracted release zip, or `SCRIPTS/WIDGETS/FPVDASH` if you cloned the repo) into `/WIDGETS/`.
 5. Confirm the final runtime path exists:
 	 `/WIDGETS/FPVDASH/`
 
