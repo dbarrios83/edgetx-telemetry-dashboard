@@ -402,3 +402,196 @@ Section 1.
 The full, checkable Step 11 test plan — exact inputs and expected
 results for every scenario referenced throughout this document — is
 [simulator-regression-checklist.md](simulator-regression-checklist.md).
+
+## 11. Circle drawing primitives (`lcd.drawCircle` / `lcd.drawFilledCircle`)
+
+**Status: documented (Improved Stick Grid project, Task 2).**
+
+The calibrated stick-grid design (round center reference, round live
+marker) needs `lcd.drawFilledCircle` and, for the center reference's
+outline case, `lcd.drawCircle`. Both are part of EdgeTX's color-LCD Lua
+drawing API and are available on the **2.12+ floor** this matrix already
+establishes in Section 1 — no separate version gate is needed for them
+specifically.
+
+**Decision:** `render/sticks.lua` still wraps its circle-drawing calls in
+a guarded helper (checks `type(lcd.drawFilledCircle) == "function"`
+before calling it, mirroring the existing `drawFilledSquare` fallback to
+manual `lcd.drawLine` rows when `lcd.drawFilledRectangle` is
+unavailable) rather than calling the primitive unconditionally. This is
+defensive consistency with that existing pattern, not evidence the
+primitive is actually missing anywhere in the supported 2.12+ range — if
+the guard ever activates, the fallback degrades to the previous
+square-marker/point rendering rather than erroring.
+
+`tests/mock_edgetx.lua` always provides both primitives (see
+`mock_edgetx_circles_spec.lua`), so the desktop test harness alone cannot
+exercise the fallback path; that path is reviewed by reading
+`render/sticks.lua`'s guard directly, the same way other defensively
+guarded EdgeTX API calls in this codebase are.
+
+## 12. Calibrated stick-grid colors were malformed EdgeTX color flags
+
+**Status: root cause confirmed (code review + luadoc.edgetx.org,
+2026-08-13) and fix confirmed working on real hardware (2026-08-13,
+Improved Stick Grid project).**
+
+**Corrected conclusion — read this first.** The invisible grid/border
+seen across every round of real-hardware testing below was caused by
+`STICK_GRID_COLORS` in `render/sticks.lua` holding raw RGB565 hex
+literals (e.g. `bg = 0x0845`) passed directly as `lcd` draw-function
+color arguments. Per
+[luadoc.edgetx.org's drawing-flags-and-colors page](https://luadoc.edgetx.org/lua-api-programming/drawing-flags-and-colors),
+EdgeTX draw functions expect a 32-bit flags value with the 16-bit RGB565
+color packed into the **upper half** (bits 17-32) — "colors in EdgeTX
+are not binary compatible with colors in OpenTX," and the docs
+explicitly warn that scripts using "hard coded constants instead of
+calling `lcd.RGB`... [is] not going to work with EdgeTX." A raw 16-bit
+literal lands entirely in the wrong half of that 32-bit value — garbage,
+not merely a slightly-wrong shade. `WHITE`/`BLACK`/etc. worked throughout
+every round because they're EdgeTX-provided constants already in the
+correct packed format; every custom color (bg/quarterGrid/centerAxis/
+centerRef/markerInner) was not.
+
+**Fix:** `render/sticks.lua` now produces every custom color via
+`lcd.RGB(r, g, b)` (a `rgbColor()` helper, guarded with a named-constant
+fallback for a hypothetical build without `lcd.RGB`), never a raw hex
+literal. `tests/mock_edgetx.lua` now implements `lcd.RGB()` matching
+EdgeTX's real packed format (`rgb565 * 65536`, using multiplication
+rather than bitwise ops for Lua 5.1 compatibility), and
+`tests/spec/sticks_grid_spec.lua` asserts every `STICK_GRID_COLORS` value
+is actually a multiple of 65536 — i.e. that it came from `lcd.RGB()` and
+not a hard-coded literal — as a regression guard. Both
+`DRAW_PAD_BACKGROUND` and `DRAW_PAD_GRID` are re-enabled; the toggles
+themselves are kept in the code (not removed) in case a future
+regression needs the same bisection approach.
+
+**Retraction:** the "N `lcd.drawFilledRectangle` calls per pad per
+refresh" theory below, developed across rounds 1-4 of hardware testing,
+is **disproven**. The border-only round (round 4) happened to be the
+first round where a correctly-formatted color (`WHITE`, for the border)
+was drawn *without* any malformed-color draw call preceding it in the
+same refresh — which reads exactly like "fewer rectangle calls fixes
+it," but was actually "no malformed color corrupted anything before this
+one drew." The investigation history is kept below for context (this
+codebase's convention — see Section 1's own "correction to the plan's
+original assumption" — is to correct, not delete, prior reasoning), but
+should not be read as current guidance.
+
+---
+
+### Investigation history (superseded by the correction above)
+
+`render/sticks.lua`'s stick-pad border has long used the
+`lcd.setColor(CUSTOM_COLOR, color)` + `lcd.drawLine(..., CUSTOM_COLOR)`
+indirection (see Section 11's own mention of this pattern) to render
+arbitrary RGB565 values via `lcd.drawLine`, which — per the border
+code's own long-standing comment — doesn't reliably accept a raw color
+value directly on some radios. Before this project, that border draw was
+the very first draw call for its pad, and it rendered correctly (see the
+pre-project `docs/img/dashboard_overview.png`).
+
+Once the calibrated pad background fill (`lcd.drawFilledRectangle`,
+Task 3) was added as the first draw call for each pad, two rounds of
+real-hardware testing showed:
+
+1. **First finding:** with the fill added, and the grid's quarter/
+   center-axis lines *also* using the `CUSTOM_COLOR` indirection (three
+   `lcd.setColor` calls per pad per frame instead of the border's
+   original one), both the grid and the border were invisible. The
+   initial hypothesis was repeated `lcd.setColor` calls per refresh.
+2. **Second finding:** switching the grid lines to pass colors directly
+   to `lcd.drawLine` (no `lcd.setColor` at all) did **not** fix it —
+   the grid was still invisible, and so was the border, whose own
+   `lcd.setColor`/`lcd.drawLine` code was completely unchanged from the
+   working pre-project version.
+
+Across both rounds, the one constant that changed was the new
+`lcd.drawFilledRectangle` background fill now running *before* every
+`lcd.drawLine` call in the pad. The live marker (`lcd.drawFilledCircle`,
+direct color, no `lcd.setColor`) rendered correctly throughout both
+rounds, as did the fill itself.
+
+**Current best-evidence conclusion:** `lcd.drawLine` does not reliably
+render, at least on the hardware that reported this, once it follows an
+`lcd.drawFilledRectangle` call earlier in the same widget refresh —
+independent of the `CUSTOM_COLOR` indirection, which was a red herring
+in the first fix attempt.
+
+**Fix:** `render/sticks.lua` no longer calls `lcd.drawLine` anywhere in
+the stick-pad draw path. The border and the calibrated grid's
+quarter/center-axis lines are now drawn as `lcd.drawFilledRectangle`
+calls (1px-thick for grid lines, `STICK_BORDER_THICKNESS`-thick for the
+border) with colors passed directly — the same primitive/argument
+combination already proven to work for the pad fill and the marker.
+`lcd.setColor`/`CUSTOM_COLOR` are no longer used anywhere in this
+renderer's default (non-debug) path.
+
+**Third finding:** the `lcd.drawFilledRectangle`-only version above was
+also re-tested on the same hardware and was **still invisible** — same
+result as both `lcd.drawLine` attempts. The marker
+(`lcd.drawFilledCircle`) kept rendering correctly throughout. So the
+constraint is not specific to `lcd.drawLine` after all: on this
+hardware, once several `lcd.drawFilledRectangle` calls run in one pad's
+refresh, none of them appear to render (including the border, whose
+call count didn't change across any of these rounds) — while
+`lcd.drawFilledCircle` calls in the same refresh, at any position in the
+sequence, keep working.
+
+**Current diagnostic step (2026-08-13, unresolved):** `render/sticks.lua`
+now gates the pad background fill and the calibrated grid off entirely
+via two local toggles, `DRAW_PAD_BACKGROUND` and `DRAW_PAD_GRID` (both
+`false`), leaving only the border (still `lcd.drawFilledRectangle`,
+4 calls per pad), the center reference, and the marker (both
+`lcd.drawFilledCircle`) in the default render path. This isolates
+whether the border — the one thing that reliably rendered before this
+project — still renders on its own once the fill/grid calls that used to
+precede it are removed. `drawStickPadBackground`/`drawStickGrid` remain
+implemented and exposed on `M` (`M.drawStickPadBackground`,
+`M.drawStickGrid`) so their logic stays covered by
+`tests/spec/sticks_grid_spec.lua` independent of the toggles, ready to
+re-enable once a working approach is confirmed.
+
+**Fourth finding (border-only, confirmed working):** with both toggles
+off, the border rendered correctly on real hardware — a complete,
+crisp white outline around both pads, alongside the center reference and
+marker. This confirms the border's 4 `lcd.drawFilledRectangle` calls are
+not inherently broken; something about combining many more such calls in
+one pad's refresh is what fails.
+
+**Fifth round (grid re-enabled, background still off, 10 rect calls/pad)
+was in flight — never got a hardware screenshot back — when code review
+identified the actual root cause (malformed color flags, not call
+count), documented at the top of this section. That correction is what's
+implemented now, not a continuation of this bisection.**
+
+### Current status
+
+**Confirmed working on real hardware (2026-08-13).** With both
+`DRAW_PAD_BACKGROUND` and `DRAW_PAD_GRID` re-enabled and colors produced
+via `lcd.RGB()`, a fresh screenshot showed the navy pad fill, the full
+4×4 grid (quarter lines plus a clearly brighter cyan center axis), the
+white border, the gray center reference, and the round marker all
+rendering together correctly on both pads — matching the confirmed
+visual spec. This closes out the investigation in this section.
+
+Remaining work is routine QA, not further debugging: the full matrix in
+`docs/platform/stick-grid-verification-checklist.md` (all three display
+classes, both themes, connected/disconnected, corners/extremes, all four
+stick modes) still needs to be run before Task 7 is complete, and exact
+RGB tuning (the `rgbColor()` 8-bit inputs in `render/sticks.lua`) can
+still be adjusted during that pass if any shade looks off — that's
+cosmetic tuning now, not a rendering bug.
+
+**Follow-up code review (2026-08-13) caught the same defect in two more
+places** that hadn't been exercised by the screenshots above because
+they aren't the default: `resolveStickBorderColor()`'s `gray`/
+`darkgray`/`lightgray` fallbacks (used only if `GREY`/`DARKGREY`/
+`LIGHTGREY` aren't defined by the running build) held the same kind of
+raw RGB565 literals (`0x8410`, `0x4208`, `0xC618`) and have been switched
+to `rgbColor()` the same way. The debug-only numeric override path
+(`STICK_BORDER_COLOR` set to a raw number, e.g. the constant's own
+`0xF800` example) still accepts a plain number as-is by design — its
+comment now documents that the number must already be an EdgeTX-packed
+value (produced via `lcd.RGB()`), not a raw RGB565 literal, rather than
+attempting to auto-detect/convert one from the other.

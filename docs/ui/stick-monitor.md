@@ -47,7 +47,7 @@ The stick monitor displays two gimbal visualizations.
 Typical Mode 2 arrangement:
 
     Left Stick      Right Stick
-        ○               ○
+      [ □ ]           [ □ ]
 
 Mode 2 axis mapping:
 - left horizontal: yaw
@@ -58,25 +58,45 @@ Mode 2 axis mapping:
 The dashboard should use Mode 2 as the documented baseline while keeping the mapping logic separate enough to support other modes later.
 
 ## 5. Stick Visualization Rules
-Each stick should be represented by:
-- a circular boundary that defines the gimbal movement range
-- a persistent center indicator
-- a moving dot that shows the current stick position
+Each stick is represented by a calibrated square pad:
+- a square movement boundary that defines the gimbal's honest,
+  independent X/Y range — not a circle, which would either clamp
+  diagonal movement or misrepresent it
+- a solid dark pad fill, giving the pad visual depth against the
+  dashboard's wallpaper/theme background
+- a light 4×4 calibration grid inside the pad: quarter lines at 25%/75%
+  on both axes, and a brighter pair of axes at the exact 50% center
+- a persistent, round center-reference indicator
+- a round, two-layer moving marker (a light outline around a dark
+  center) that shows the current stick position
 
-Conceptual visualization (schematic only—actual rendering uses a circle):
+Conceptual visualization (schematic only — see
+[stick-grid-verification-checklist.md](../platform/stick-grid-verification-checklist.md)
+for what the actual rendering looks like):
 
     +-----------+
-    |     +     |
-    |     o     |
-    |           |
+    |  :  |  :  |
+    |..-..+..-..|
+    |  :  o  :  |
+    |  :  |  :  |
     +-----------+
 
 Visualization rules:
-- both stick circles use the same size
-- the moving dot must remain clearly visible against the background
-- the center marker must remain visible even when the dot moves away
-- graphics should stay minimal and lightweight
-- the moving dot should never render outside the stick boundary
+- both stick pads use the same size, derived from the available layout
+  space (never a fixed pixel size or a check against display
+  resolution/name)
+- the grid stays visually subordinate to the moving marker and to the
+  telemetry cards elsewhere on the dashboard — it reads as calibration
+  detail, not a focal point
+- the moving marker must remain clearly visible against the pad fill and
+  the grid
+- the center-reference indicator must remain visible whenever the
+  marker is away from center (it may be covered when the marker is
+  exactly centered)
+- graphics should stay solid and lightweight — no gradients, alpha
+  blending, blur, or other soft effects
+- the moving marker should never render outside the pad's bordered
+  movement area, at any stick position including the four corners
 
 ## 6. Movement Mapping
 Stick inputs must be mapped from normalized channel values into the visible gimbal range.
@@ -85,17 +105,20 @@ Baseline normalization:
 
     normalized = input / 100
 
-Mapped position:
+Mapped position (independently per axis, across the pad's usable
+bordered range — not a shared radius):
 
-    x = centerX + normalizedHorizontal * radius
-    y = centerY - normalizedVertical * radius
+    x = mapAxis(normalizedHorizontal, minX, maxX)
+    y = mapAxis(normalizedVertical, minY, maxY)
 
 Mapping rules:
-- horizontal minimum maps to the left edge of the stick range
-- horizontal maximum maps to the right edge of the stick range
-- vertical minimum maps to the bottom edge of the stick range
-- vertical maximum maps to the top edge of the stick range
+- horizontal minimum maps to the left edge of the pad's usable range
+- horizontal maximum maps to the right edge of the pad's usable range
+- vertical minimum maps to the bottom edge of the pad's usable range
+- vertical maximum maps to the top edge of the pad's usable range
 - `0` maps to the visual center for self-centering axes
+- X and Y are mapped independently, so diagonal deflection is not
+  clamped or distorted the way a circular boundary would require
 
 Throttle note:
 - on a standard Mode 2 radio, throttle usually does not self-center
@@ -117,14 +140,17 @@ Behavior expectations:
 ## 8. Center Indicator
 The stick display should clearly indicate the neutral position.
 
-Recommended options:
-- small center dot
-- subtle crosshair
-- faint horizontal and vertical guide lines
+Implemented as two layers:
+- a small, round, neutral-gray center-reference dot, exactly at the
+  pad's center
+- a pair of brighter grid axes crossing at the same center point, more
+  prominent than the quarter-grid lines but still secondary to the
+  moving marker
 
 Requirements:
-- the center indicator must always remain visible
-- it must be visually lighter than the moving stick dot
+- the center reference must remain visible whenever the moving marker
+  is away from center
+- it must be visually lighter/smaller than the moving marker
 - it should help pilots confirm centering during pre-flight checks
 
 ## 9. Visual Priority
@@ -171,10 +197,13 @@ For grid and slot behavior below the stick monitor area, see [docs/telemetry-lay
 Stick rendering must remain lightweight so the widget refresh loop stays responsive.
 
 Guidelines:
-- use simple shapes instead of complex graphics
+- use simple, solid shapes instead of complex graphics (no gradients,
+  alpha blending, blur, or bitmap scaling)
 - avoid unnecessary redraw work outside the monitor area when possible
-- reuse precomputed layout values for stick centers and radius
+- reuse precomputed layout values for stick pad bounds and center
 - avoid allocations inside the refresh loop
+- select marker/grid sizing from the pad's own computed size, never
+  from display resolution or a named resolution class
 
 ## 13. Acceptance Mapping
 This definition establishes:

@@ -168,7 +168,43 @@ function M.install(fixture)
     drawRectangle = recordCall("drawRectangle"),
     drawBitmap = recordCall("drawBitmap"),
     drawLine = recordCall("drawLine"),
+    -- Real EdgeTX signature: lcd.drawCircle(x, y, radius[, flags]) /
+    -- lcd.drawFilledCircle(x, y, radius[, flags]) -- center + radius, not
+    -- a bounding box, unlike drawRectangle/drawFilledRectangle above.
+    -- Recorded with the same {name, ...} shape as every other call here
+    -- (Improved Stick Grid, Task 2) so tests can filter marker/center-
+    -- reference circles by center coordinates, radius, and color flags
+    -- the same way stick_mode_spec.lua already filters
+    -- drawFilledRectangle calls by size.
+    drawCircle = recordCall("drawCircle"),
+    drawFilledCircle = recordCall("drawFilledCircle"),
     setColor = recordCall("setColor"),
+    -- Real EdgeTX signature: lcd.RGB(r, g, b) (8-bit components) or
+    -- lcd.RGB(packedRGB) (single 0xRRGGBB int) -> a 32-bit flags value
+    -- with the 16-bit RGB565 color packed into the UPPER half (bits
+    -- 17-32), per luadoc.edgetx.org's drawing-flags-and-colors page --
+    -- NOT a raw RGB565 value (see docs/platform/compatibility-matrix.md
+    -- Section 12, a real-hardware finding: raw RGB565 hex literals
+    -- passed directly to lcd draw functions are malformed EdgeTX color
+    -- flags, not merely off-color). Modeled here with multiplication
+    -- (packed = rgb565 * 65536) rather than bitwise shifts, matching
+    -- this repo's existing Lua 5.1-compatibility constraint (5.1 has no
+    -- native bitwise operators). A production color's `% 65536 == 0`
+    -- tells a test it went through this function rather than being a
+    -- hard-coded raw RGB565 literal.
+    RGB = function(r, g, b)
+      if g == nil and b == nil then
+        local packed = r or 0
+        r = math.floor(packed / 65536) % 256
+        g = math.floor(packed / 256) % 256
+        b = packed % 256
+      end
+      local r5 = math.floor((r or 0) / 8) % 32
+      local g6 = math.floor((g or 0) / 4) % 64
+      local b5 = math.floor((b or 0) / 8) % 32
+      local rgb565 = (r5 * 2048) + (g6 * 32) + b5
+      return rgb565 * 65536
+    end,
     -- Mock approximation only, not real EdgeTX font metrics -- this
     -- desktop harness has no real renderer, so there is no ground truth
     -- to match. Keyed on this mock's own SMLSIZE=0/MIDSIZE=4/DBLSIZE=8
