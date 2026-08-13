@@ -71,3 +71,11 @@ files["tests/spec/release_spec.lua"] = {
 files["tests/spec/layout_grid_spec.lua"] = {
   globals = { "Bitmap" },
 }
+-- Temporarily overrides lcd.sizeText with a stub that returns a distinct
+-- height, to prove drawTxBattery() centers on sizeText()'s real
+-- measurement rather than a hardcoded guess (issue #74 regression test) --
+-- needs write access to the lcd global mock_edgetx.lua already installed,
+-- same as the Bitmap overrides above.
+files["tests/spec/topbar_spec.lua"] = {
+  globals = { "lcd" },
+}
