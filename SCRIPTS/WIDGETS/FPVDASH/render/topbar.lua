@@ -505,7 +505,8 @@ local function drawTxBattery(rect, txV, txState)
     textX = groupX + TX_BATTERY_ICON_W + TX_ICON_TEXT_GAP
   end
 
-  local textY = centerStart(rect.y, rect.h, TX_TEXT_H)
+  local _, textH = sizeText(txText, SMLSIZE, TX_TEXT_CHAR_W, TX_TEXT_H)
+  local textY = centerStart(rect.y, rect.h, textH)
   drawShadowText(textX, textY, txText, SMLSIZE, txColor)
 end
 

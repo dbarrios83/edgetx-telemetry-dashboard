@@ -68,6 +68,38 @@ return function(t, mock, paths)
       end)
     end)
 
+    t.it("vertically centers the TX battery text using sizeText()'s measured height, not a hardcoded guess (issue #74)", function()
+      mock.withInstall({ sensors = { ["tx-voltage"] = { value = 7.6 } } }, function()
+        -- Override the mock's SMLSIZE height so it disagrees with
+        -- topbar.lua's TX_TEXT_H=8 fallback guess. If drawTxBattery()
+        -- still centered on that hardcoded guess instead of calling
+        -- sizeText() (the bug in issue #74), the asserted y below would
+        -- be 14 (centerStart(0, 36, 8)) instead of 7.
+        local realSizeText = lcd.sizeText
+        lcd.sizeText = function(text, flags)
+          if (flags or 0) == 0 then
+            return #tostring(text or "") * 5, 21
+          end
+          return realSizeText(text, flags)
+        end
+
+        local topbar = paths.loadWidgetModule("render/topbar.lua")
+        topbar.draw(BOUNDS, { connected = false }, nil, THEME)
+
+        -- drawShadowText() draws two passes -- a shadow at (x+1, y+1),
+        -- then the real text at (x, y) -- so take the last "7.6V" call
+        -- (the real text), not the first (the shadow, off by 1).
+        local txTextY = nil
+        for _, call in ipairs(mock.lcdCalls or {}) do
+          if call.name == "drawText" and call[3] == "7.6V" then
+            txTextY = call[2]
+          end
+        end
+
+        t.assertEqual(txTextY, 7)
+      end)
+    end)
+
     t.it("renders without error across repeated calls and a theme change (icon reload path)", function()
       mock.withInstall({ sensors = {} }, function()
         local topbar = paths.loadWidgetModule("render/topbar.lua")
