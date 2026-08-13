@@ -40,11 +40,16 @@ return function(t, mock, paths)
     return calls
   end
 
-  local function drawLineCalls(mockRef)
+  -- The stick pads (background fill, calibrated grid, and border) are
+  -- all drawn as lcd.drawFilledRectangle calls, not lcd.drawLine (see
+  -- docs/platform/compatibility-matrix.md Section 12 -- lcd.drawLine
+  -- stopped rendering on real hardware once it followed a
+  -- drawFilledRectangle call in the same widget refresh).
+  local function drawFilledRectangleCalls(mockRef)
     local calls = {}
     for _, call in ipairs(mockRef.lcdCalls or {}) do
-      if call.name == "drawLine" then
-        calls[#calls + 1] = { x1 = call[1], y1 = call[2], x2 = call[3], y2 = call[4] }
+      if call.name == "drawFilledRectangle" then
+        calls[#calls + 1] = { x = call[1], y = call[2], w = call[3], h = call[4] }
       end
     end
     return calls
@@ -121,14 +126,15 @@ return function(t, mock, paths)
         t.assertTrue(withinCellY(rxIcon.y, RX_BATTERY_ICON_H, expected[3]),
           "receiver battery icon stays vertically within cell 3")
 
-        -- Both stick boxes (drawn as bordered rectangles via drawLine)
-        -- stay within the middle Sticks cell (40%), strictly between the
-        -- two side cells -- confirming cell order LQ / Sticks / RX Battery.
-        local lines = drawLineCalls(mock)
-        t.assertTrue(#lines > 0, "expected stick border lines to be drawn")
-        for _, line in ipairs(lines) do
-          t.assertTrue(line.x1 >= expected[2].x and line.x2 <= expected[2].x + expected[2].w,
-            "stick border line stays within cell 2 (Sticks, 40%)")
+        -- Both stick pads (background fill, grid, and border -- all
+        -- drawn as filled rectangles) stay within the middle Sticks cell
+        -- (40%), strictly between the two side cells -- confirming cell
+        -- order LQ / Sticks / RX Battery.
+        local rects = drawFilledRectangleCalls(mock)
+        t.assertTrue(#rects > 0, "expected stick pad rectangles to be drawn")
+        for _, r in ipairs(rects) do
+          t.assertTrue(r.x >= expected[2].x and (r.x + r.w) <= expected[2].x + expected[2].w,
+            "stick pad rectangle stays within cell 2 (Sticks, 40%)")
         end
         t.assertTrue(lqIcon.x < expected[2].x, "LQ cell is left of the Sticks cell")
         t.assertTrue(rxIcon.x >= expected[2].x + expected[2].w, "Receiver Battery cell is right of the Sticks cell")
@@ -167,8 +173,8 @@ return function(t, mock, paths)
         t.assertNil(bitmapCallContaining(bitmaps, "connection-"), "no LQ icon while disconnected")
         t.assertNil(bitmapCallContaining(bitmaps, "battery-"), "no receiver battery icon while disconnected")
 
-        -- The stick boxes themselves are not gated on connection state.
-        t.assertTrue(#drawLineCalls(mock) > 0, "stick boxes still render while disconnected")
+        -- The stick pads themselves are not gated on connection state.
+        t.assertTrue(#drawFilledRectangleCalls(mock) > 0, "stick pads still render while disconnected")
       end)
     end)
 
